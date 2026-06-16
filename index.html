@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pakistan Agriculture Equation</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Mapbox CSS -->
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/template/style.css">
+</head>
+<body>
+    <!-- Navbar stays OUTSIDE the portal wrapper -->
+    <nav class="navbar">
+        <div class="navbar-left">
+            <img src="./Data/ndma_logo.png" alt="NDMA Logo" class="navbar-logo" />
+        </div>
+
+        <div class="navbar-center">
+            <h1 class="navbar-title">National Agriculture Watch</h1>
+        </div>
+
+        <div class="navbar-right">
+            <!-- Make sure to put the correct portal number below -->
+            <div class="status-label">N-9</div>
+        </div>
+    </nav>
+    <!-- END Navbar -->
+
+    <!-- START: Empty Portal Wrapper - You are supposed to put your whole html code inside this -->
+    <!-- Make sure to remove the old existing navbar from your portal code as we are using the above code -->
+    <div class="portal-wrapper">
+        <!-- Main Container -->
+        <div class="container-fluid p-0">
+            <div class="row g-0 top-row">
+                <!-- Left Column - Map and Charts -->
+                <div class="col-12 left-column">
+                <!-- Map Section -->
+                <div id="map-section" class="section-container">
+                    <div id="map" class="map-container">
+                        <!-- Hamburger Menu Button -->
+                        <button class="map-hamburger-btn" onclick="toggleMapMenu()">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </button>
+
+                        <!-- Map Sidebar Menu -->
+                        <div id="mapSidebar" class="map-sidebar">
+                            <div class="map-sidebar-header">
+                                <h4>Layers</h4>
+                                <button class="map-close-btn" onclick="toggleMapMenu()">&times;</button>
+                            </div>
+                            
+                            <!-- Boundaries Section -->
+                            <div class="map-menu-section">
+                                <button class="map-accordion-btn" onclick="toggleAccordion('boundaries-acc')">
+                                    Boundaries <span class="accordion-icon">+</span>
+                                </button>
+                                <div id="boundaries-acc" class="map-accordion-content">
+                                    <a href="#" onclick="handleLayerClick('National Boundary')">National Boundary</a>
+                                    <a href="#" onclick="handleLayerClick('Provincial Boundary')">Provincial Boundary</a>
+                                    <a href="#" onclick="handleLayerClick('District Boundary')">District Boundary</a>
+                                    <a href="#" onclick="handleLayerClick('Tehsil Boundary')">Tehsil Boundary</a>
+                                </div>
+                            </div>
+
+                            <!-- Flood Layer Section -->
+                            
+
+                            <!-- Godowns Section -->
+                            
+
+                            <!-- Crop Stress Section -->
+                            
+
+                            <!-- Cropping Zones Section -->
+                            
+
+                            <!-- Affected Areas Section -->
+                            <div class="map-menu-section">
+                                <button class="map-accordion-btn" onclick="toggleAccordion('affected-areas-acc')">
+                                    Affected Areas <span class="accordion-icon">+</span>
+                                </button>
+                                <div id="affected-areas-acc" class="map-accordion-content">
+                                    <div class="map-toggle-container">
+                                        <label>Sindh</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="provincial-sindh-toggle" onchange="handleProvincialToggle('Sindh', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Punjab</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="provincial-punjab-toggle" onchange="handleProvincialToggle('Punjab', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>KPK</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="provincial-kpk-toggle" onchange="handleProvincialToggle('KPK', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Flood Layer Section -->
+                            <div class="map-menu-section">
+                                <button class="map-accordion-btn" onclick="toggleAccordion('main-map-flood-acc')">
+                                    Flood Layers <span class="accordion-icon">+</span>
+                                </button>
+                                <div id="main-map-flood-acc" class="map-accordion-content">
+                                    <div class="map-toggle-container">
+                                        <label>2025</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2025-toggle" onchange="handleMainMapFloodToggle('2025', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2024</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2024-toggle" onchange="handleMainMapFloodToggle('2024', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2023</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2023-toggle" onchange="handleMainMapFloodToggle('2023', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2022</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2022-toggle" onchange="handleMainMapFloodToggle('2022', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2015</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2015-toggle" onchange="handleMainMapFloodToggle('2015', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2014</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2014-toggle" onchange="handleMainMapFloodToggle('2014', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2013</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2013-toggle" onchange="handleMainMapFloodToggle('2013', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2012</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2012-toggle" onchange="handleMainMapFloodToggle('2012', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2011</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2011-toggle" onchange="handleMainMapFloodToggle('2011', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>2010</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="main-flood-2010-toggle" onchange="handleMainMapFloodToggle('2010', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+
+                            <!-- Crop Classification Section (Renamed to Major Crops and moved above Vegetation Cover) -->
+                            <div class="map-menu-section">
+                                <button class="map-accordion-btn" onclick="toggleAccordion('crop-classification-acc')">
+                                    Major Crops <span class="accordion-icon">+</span>
+                                </button>
+                                <div id="crop-classification-acc" class="map-accordion-content">
+                                    <div class="map-toggle-container">
+                                        <label>Wheat</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="crop-wheat-toggle" onchange="handleCropClassificationToggle('Wheat', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Rice</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="crop-rice-toggle" onchange="handleCropClassificationToggle('Rice', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Cotton</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="crop-cotton-toggle" onchange="handleCropClassificationToggle('Cotton', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Maize</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="crop-maize-toggle" onchange="handleCropClassificationToggle('Maize', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Sugarcane</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="crop-sugarcane-toggle" onchange="handleCropClassificationToggle('Sugarcane', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Vegetation Cover Section -->
+                            <div class="map-menu-section">
+                                <div class="map-toggle-container">
+                                    <a href="#" class="map-toggle-btn" onclick="handleLayerClick('Vegetation Cover')">Vegetation Cover</a>
+                                    <label class="map-toggle-switch">
+                                        <input type="checkbox" id="vegetation-toggle" onchange="handleVegetationToggle(this.checked)">
+                                        <span class="map-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Crop Topology Section -->
+                            <div class="map-menu-section">
+                                <div class="map-toggle-container">
+                                    <a href="#" class="map-toggle-btn" onclick="handleLayerClick('Crop Topology')">Crop Topology</a>
+                                    <label class="map-toggle-switch">
+                                        <input type="checkbox" id="crop-topology-toggle" onchange="handleCropTopologyToggle(this.checked)">
+                                        <span class="map-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+
+                            <!-- Precipitation Section -->
+                            <div class="map-menu-section">
+                                <div class="map-toggle-container">
+                                    <a href="#" class="map-toggle-btn map-toggle-btn-precipitation" onclick="handleLayerClick('Precipitation')">Precipitation</a>
+                                    <label class="map-toggle-switch">
+                                        <input type="checkbox" id="map-precipitation-toggle" onchange="handlePrecipitationToggle(this.checked)">
+                                        <span class="map-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Drought Index Section -->
+                            <div class="map-menu-section">
+                                <div class="map-toggle-container">
+                                    <a href="#" class="map-toggle-btn map-toggle-btn-drought-index" onclick="handleLayerClick('Drought Index (May)')">Drought Index (May)</a>
+                                    <label class="map-toggle-switch">
+                                        <input type="checkbox" id="map-drought-index-toggle" onchange="handleDroughtIndexToggle(this.checked)">
+                                        <span class="map-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Temperature (May) Section -->
+                            <div class="map-menu-section">
+                                <div class="map-toggle-container">
+                                    <a href="#" class="map-toggle-btn map-toggle-btn-temperature" onclick="handleLayerClick('Temperature (May)')">Temperature (May)</a>
+                                    <label class="map-toggle-switch">
+                                        <input type="checkbox" id="map-temperature-may-toggle" onchange="handleTemperatureToggle(this.checked)">
+                                        <span class="map-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <!-- Others Section (Now Simex) -->
+                            <div class="map-menu-section">
+                                <button class="map-accordion-btn" onclick="toggleAccordion('others-acc')">
+                                    Simex <span class="accordion-icon">+</span>
+                                </button>
+                                <div id="others-acc" class="map-accordion-content">
+                                    <div class="map-toggle-container">
+                                        <label>Vulnerable districts</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="others-vulnerable-districts-toggle" onchange="handleOthersToggle('vulnerable-districts', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Drought Impacts</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="others-drought-impacts-toggle" onchange="handleOthersToggle('drought-impacts', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Heatwave Impacts</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="others-heatwave-impacts-toggle" onchange="handleOthersToggle('heatwave-impacts', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Comparison</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="others-comparison-toggle" onchange="handleOthersToggle('comparison', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="map-toggle-container">
+                                        <label>Yield Comparison</label>
+                                        <label class="map-toggle-switch">
+                                            <input type="checkbox" id="others-yield-comparison-toggle" onchange="handleOthersToggle('yield-comparison', this.checked)">
+                                            <span class="map-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+
+                <!-- Right Column - Portals and Simex Data -->
+                <div class="col-12 right-column">
+                    <!-- Simex Data Section -->
+                    <div id="simex-section" class="section-container">
+                        <div class="simex-content">
+                        </div>
+                        <!-- Hamburger Menu Button -->
+                        <button class="simex-hamburger-btn" onclick="toggleSimexMenu()">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </button>
+
+                        <!-- Simex Sidebar Menu -->
+                        <div id="simexSidebar" class="simex-sidebar">
+                            <div class="simex-sidebar-header">
+                                <h4>Layers</h4>
+                                <button class="simex-close-btn" onclick="toggleSimexMenu()">&times;</button>
+                            </div>
+
+                            <div class="simex-menu-section">
+                                <div class="simex-toggle-container">
+                                    <label>Godowns</label>
+                                    <label class="simex-toggle-switch">
+                                        <input type="checkbox" id="godowns-toggle" onchange="handleSimexGodownsToggle(this.checked)">
+                                        <span class="simex-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="simex-menu-section">
+                                <div class="simex-toggle-container">
+                                    <label>Crop Stress</label>
+                                    <label class="simex-toggle-switch">
+                                        <input type="checkbox" id="crop-stress-toggle" onchange="handleSimexCropStressToggle(this.checked)">
+                                        <span class="simex-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="simex-menu-section">
+                                <div class="simex-toggle-container">
+                                    <label>Irrigation</label>
+                                    <label class="simex-toggle-switch">
+                                        <input type="checkbox" id="irrigation-toggle" onchange="handleSimexIrrigationToggle(this.checked)">
+                                        <span class="simex-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="simex-menu-section">
+                                <div class="simex-toggle-container">
+                                    <label>Main Rivers</label>
+                                    <label class="simex-toggle-switch">
+                                        <input type="checkbox" id="main-rivers-toggle" onchange="handleSimexMainRiversToggle(this.checked)">
+                                        <span class="simex-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="simex-menu-section">
+                                <div class="simex-toggle-container">
+                                    <label>CCAs</label>
+                                    <label class="simex-toggle-switch">
+                                        <input type="checkbox" id="ccas-toggle" onchange="handleSimexCCAsToggle(this.checked)">
+                                        <span class="simex-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Simex Data Dropdown -->
+                            <div class="simex-menu-section">
+                                <div class="simex-accordion-header" onclick="toggleSimexAccordion('simex-data')">
+                                    <span>Simex Data</span>
+                                    <span class="simex-accordion-icon">▼</span>
+                                </div>
+                                <div id="simex-data" class="simex-accordion-content">
+                                    <!-- AOI Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>AOI</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="aoi-toggle" onchange="handleSimexDataToggle('AOI', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <!-- LST Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>LST</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="lst-toggle" onchange="handleSimexDataToggle('LST', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Frost Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>Frost</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="frost-toggle" onchange="handleSimexDataToggle('Frost', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Precipitation Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>Precipitation</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="precipitation-toggle" onchange="handleSimexDataToggle('Precipitation', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Soil Moisture Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>Soil Moisture</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="soil-moisture-toggle" onchange="handleSimexDataToggle('Soil Moisture', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Temperature Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>Temperature</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="temperature-toggle" onchange="handleSimexDataToggle('Temperature', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+
+                                    <!-- Humidity Section -->
+                                    <div class="simex-toggle-container">
+                                        <label>Humidity</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="humidity-toggle" onchange="handleSimexDataToggle('Humidity', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="simex-menu-section">
+                                <div class="simex-accordion-header" onclick="toggleSimexAccordion('flood-acc')">
+                                    <span>Flood Layer</span>
+                                    <span class="simex-accordion-icon">▼</span>
+                                </div>
+                                <div id="flood-acc" class="simex-accordion-content">
+                                    <div class="simex-toggle-container">
+                                        <label>2025</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2025-toggle" onchange="handleSimexFloodToggle('2025', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2024</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2024-toggle" onchange="handleSimexFloodToggle('2024', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2023</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2023-toggle" onchange="handleSimexFloodToggle('2023', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2022</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2022-toggle" onchange="handleSimexFloodToggle('2022', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2015</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2015-toggle" onchange="handleSimexFloodToggle('2015', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2014</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2014-toggle" onchange="handleSimexFloodToggle('2014', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2013</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2013-toggle" onchange="handleSimexFloodToggle('2013', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2012</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2012-toggle" onchange="handleSimexFloodToggle('2012', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2011</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2011-toggle" onchange="handleSimexFloodToggle('2011', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>2010</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="flood-2010-toggle" onchange="handleSimexFloodToggle('2010', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="simex-menu-section">
+                                <div class="simex-accordion-header" onclick="toggleSimexAccordion('major-crop-acc')">
+                                    <span>Major Crop Type</span>
+                                    <span class="simex-accordion-icon">▼</span>
+                                </div>
+                                <div id="major-crop-acc" class="simex-accordion-content">
+                                    <div class="simex-toggle-container">
+                                        <label>Rice</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="major-crop-rice-toggle" onchange="handleSimexMajorCropToggle('Rice', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>Sugarcane</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="major-crop-sugarcane-toggle" onchange="handleSimexMajorCropToggle('Sugarcane', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>Wheat</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="major-crop-wheat-toggle" onchange="handleSimexMajorCropToggle('Wheat', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="simex-menu-section">
+                                <div class="simex-accordion-header" onclick="toggleSimexAccordion('cropping-zones-acc')">
+                                    <span>Cropping Zones</span>
+                                    <span class="simex-accordion-icon">▼</span>
+                                </div>
+                                <div id="cropping-zones-acc" class="simex-accordion-content">
+                                    <div class="simex-toggle-container">
+                                        <label>Balochistan</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="cropping-balochistan-toggle" onchange="handleSimexCroppingZoneToggle('Balochistan', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>Sindh</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="cropping-sindh-toggle" onchange="handleSimexCroppingZoneToggle('Sindh', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>KPK</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="cropping-kpk-toggle" onchange="handleSimexCroppingZoneToggle('KPK', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>Punjab</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="cropping-punjab-toggle" onchange="handleSimexCroppingZoneToggle('Punjab', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                    <div class="simex-toggle-container">
+                                        <label>AJK</label>
+                                        <label class="simex-toggle-switch">
+                                            <input type="checkbox" id="cropping-ajk-toggle" onchange="handleSimexCroppingZoneToggle('AJK', this.checked)">
+                                            <span class="simex-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Portals iframe Section -->
+                    <div id="portals-section" class="section-container">
+                        <div class="portals-content">
+                            <!-- Hamburger Menu Button -->
+                            <button class="portals-hamburger-btn" onclick="togglePortalsMenu()">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </button>
+
+                            <!-- Fullscreen Button -->
+                            <button class="portals-fullscreen-btn" onclick="togglePortalFullscreen()" title="Toggle Fullscreen">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                                </svg>
+                            </button>
+
+                            <!-- Portals Sidebar Menu -->
+                            <div id="portalsSidebar" class="portals-sidebar">
+                                <div class="portals-sidebar-header">
+                                    <h4>Portals</h4>
+                                    <button class="portals-close-btn" onclick="togglePortalsMenu()">&times;</button>
+                                </div>
+                                
+                                <!-- LIMS Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-toggle-container">
+                                        <a href="#" class="portals-toggle-btn" onclick="handlePortalClick('LIMS')">LIMS</a>
+                                        <label class="portals-toggle-switch">
+                                            <input type="checkbox" id="lims-toggle" onchange="handlePortalToggle(this.checked, 'https://pakkissan.com/ndma')">
+                                            <span class="portals-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Food Security Portal Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-toggle-container">
+                                        <a href="#" class="portals-toggle-btn" onclick="handlePortalClick('Food Security Portal')">Food Security Portal</a>
+                                        <label class="portals-toggle-switch">
+                                            <input type="checkbox" id="fsp-toggle" onchange="handlePortalToggle(this.checked, 'https://fsp.gov.pk/')">
+                                            <span class="portals-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Data Portal Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-toggle-container">
+                                        <a href="#" class="portals-toggle-btn" onclick="handlePortalClick('Data Portal')">Data Portal</a>
+                                        <label class="portals-toggle-switch">
+                                            <input type="checkbox" id="data-toggle" onchange="handlePortalToggle(this.checked, 'http://pc.urbanunit.gov.pk/DataBank/Index')">
+                                            <span class="portals-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- National Account Dashboard Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-toggle-container">
+                                        <a href="#" class="portals-toggle-btn" onclick="handlePortalClick('National Account Dashboard')">National Account Dashboard</a>
+                                        <label class="portals-toggle-switch">
+                                            <input type="checkbox" id="nad-toggle" onchange="handlePortalToggle(this.checked, 'https://na.data.gov.pk/Crops/Home')">
+                                            <span class="portals-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <!-- Old Graphs Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-accordion-header" onclick="togglePortalsAccordion('graphs-data')">
+                                        <span>Old Graphs</span>
+                                        <span class="portals-accordion-icon">▼</span>
+                                    </div>
+                                    <div id="graphs-data" class="portals-accordion-content">
+                            <!-- Food Crops Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Food Crops')">Food Crops</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="food-crops-toggle" onchange="handleGraphToggle(this.checked, 'food-crops')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Horticulture Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Horticulture')">Horticulture</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="horticulture-toggle" onchange="handleGraphToggle(this.checked, 'horticulture')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Cash Crops Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Cash Crops')">Cash Crops</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="cash-crops-toggle" onchange="handleGraphToggle(this.checked, 'cash-crops')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Population Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Population')">Population</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="population-toggle" onchange="handleGraphToggle(this.checked, 'population')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Combined Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Combined')">Combined</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="combined-toggle" onchange="handleGraphToggle(this.checked, 'combined')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Import Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Import')">Import</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="import-toggle" onchange="handleGraphToggle(this.checked, 'import')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <!-- Export Section -->
+                            <div class="portals-menu-section">
+                                <div class="portals-toggle-container">
+                                    <a href="#" class="portals-toggle-btn" onclick="handleGraphClick('Export')">Export</a>
+                                    <label class="portals-toggle-switch">
+                                        <input type="checkbox" id="export-toggle" onchange="handleGraphToggle(this.checked, 'export')">
+                                        <span class="portals-toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                                    </div>
+                                </div>
+                                <!-- Graphs Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-accordion-header" onclick="togglePortalsAccordion('graphs-new')">
+                                        <span>Graphs</span>
+                                        <span class="portals-accordion-icon">▼</span>
+                                    </div>
+                                    <div id="graphs-new" class="portals-accordion-content">
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Balochistan Crop Distribution')">Balochistan Crop Distribution</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="balochistan-crop-distribution-toggle" onchange="handleNewGraphToggle(this.checked, 'balochistan-crop-distribution')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Balochistan Farm Info')">Balochistan Farm Info</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="balochistan-farm-info-toggle" onchange="handleNewGraphToggle(this.checked, 'balochistan-farm-info')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('KPK Crop Distribution')">KPK Crop Distribution</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="kpk-crop-distribution-toggle" onchange="handleNewGraphToggle(this.checked, 'kpk-crop-distribution')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('KPK Farm Info')">KPK Farm Info</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="kpk-farm-info-toggle" onchange="handleNewGraphToggle(this.checked, 'kpk-farm-info')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Sindh Crop Distribution')">Sindh Crop Distribution</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="sindh-crop-distribution-toggle" onchange="handleNewGraphToggle(this.checked, 'sindh-crop-distribution')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Sindh Farm Info')">Sindh Farm Info</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="sindh-farm-info-toggle" onchange="handleNewGraphToggle(this.checked, 'sindh-farm-info')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Punjab Crop Distribution')">Punjab Crop Distribution</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="punjab-crop-distribution-toggle" onchange="handleNewGraphToggle(this.checked, 'punjab-crop-distribution')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Punjab Farm Info')">Punjab Farm Info</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="punjab-farm-info-toggle" onchange="handleNewGraphToggle(this.checked, 'punjab-farm-info')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Pakistan Crop Distribution')">Pakistan Crop Distribution</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="pakistan-crop-distribution-toggle" onchange="handleNewGraphToggle(this.checked, 'pakistan-crop-distribution')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Pakistan Farm Info')">Pakistan Farm Info</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="pakistan-farm-info-toggle" onchange="handleNewGraphToggle(this.checked, 'pakistan-farm-info')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="portal-iframe-container">
+                                <iframe id="portal-iframe" src="https://pakkissan.com/ndma" width="100%" height="100%" frameborder="0"></iframe>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Bottom Row - Charts -->
+            <div class="row g-0 bottom-row">
+                <div class="col-12">
+                    <div id="charts-section" class="section-container">
+                        <button class="charts-fullscreen-btn" onclick="toggleChartsFullscreen()" title="Toggle Fullscreen">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                            </svg>
+                        </button>
+                        <div class="chart-container">
+                            <canvas id="mainChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- END: Portal Wrapper -->
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Mapbox JS -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <!-- Main Script -->
+    <script src="/template/script.js"></script>
+    <!--Configuration file-->
+    <script src="/template/config.js"></script>
+    <!-- Container JS Files -->
+    <script src="/template/map_Container.js"></script>
+    <script src="/template/chart_container.js"></script>
+    <script src="/template/portals_container.js"></script>
+    <script src="/template/simex_container.js"></script>
+
+</body>
+</html>
