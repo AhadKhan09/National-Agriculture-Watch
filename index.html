@@ -198,7 +198,16 @@
                             <!-- Crop Classification Section (Renamed to Major Crops and moved above Vegetation Cover) -->
                             <div class="map-menu-section">
                                 <button class="map-accordion-btn" onclick="toggleAccordion('crop-classification-acc')">
-                                    Major Crops <span class="accordion-icon">+</span>
+                                    <span>Major Crops</span>
+                                    <span class="crop-autoplay-btn" onclick="event.stopPropagation(); handleCropAutoplayToggle(this);" title="Autoplay layers">
+                                        <svg class="autoplay-play-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: middle;">
+                                            <path d="M8 5v14l11-7z"/>
+                                        </svg>
+                                        <svg class="autoplay-pause-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align: middle; display: none;">
+                                            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                                        </svg>
+                                    </span>
+                                    <span class="accordion-icon">+</span>
                                 </button>
                                 <div id="crop-classification-acc" class="map-accordion-content">
                                     <div class="map-toggle-container">

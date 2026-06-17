@@ -95,10 +95,10 @@ const layerUrls = {
     },
     'Crop Classification': {
         'Wheat': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Wheat_Dummy&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
-        'Rice': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Rice_Dummy&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
+        'Rice': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Rice_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
         'Cotton': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Cotton_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
-        'Maize': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Maize_Dummy&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
-        'Sugarcane': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Sugarcane_Dummy&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`
+        'Maize': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Maize_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
+        'Sugarcane': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Sugarcane_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`
     }
 };
 
@@ -334,6 +334,11 @@ function toggleAccordion(id) {
             acc.previousElementSibling.classList.remove('active');
         }
     });
+
+    // Stop crop autoplay if opening a different accordion or collapsing the major crops accordion
+    if (id !== 'crop-classification-acc' || (button && button.classList.contains('active'))) {
+        stopCropAutoplay();
+    }
 
     // Toggle the clicked accordion
     content.classList.toggle('active');
@@ -3401,8 +3406,8 @@ const cropData = {
     Wheat: {
         title: "🌾 Wheat Production · Climate Impact",
         prodUnit: "M t",
-        lossLabel: "Loss",
-        prodLabel: "Area / Prod.",
+        lossLabel: "Loss Due to Disaster",
+        prodLabel: "Production",
         chartTitle: "Wheat Yield: Actual vs Potential",
         chartYTitle: "Wheat Yield (M tonnes)",
         legendActual: "Actual Yield",
@@ -3410,95 +3415,127 @@ const cropData = {
         gridMin: 24,
         gridMax: 33,
         gridLabels: [24, 27, 30, 33],
+        headers: {
+            year: "Year",
+            area: "Area<br><span style=\"font-size:11px;opacity:.7\">(M/Ha)</span>",
+            prod: "Prod.<br><span style=\"font-size:11px;opacity:.7\">(M t)</span>",
+            yield: "Avg Yield<br><span style=\"font-size:11px;opacity:.7\">(t/Ha)</span>",
+            loss: "Loss Due to<br>Disaster (M t)",
+            potential: "Potential Prod.<br>w/o Disaster (M t)"
+        },
         tableRows: [
-            { year: "2021–22", area: "8.97 M ha", prod: "26.20 M t", event: "Extreme heat hit during the critical grain-filling stage", loss: "4.58%", severity: "moderate" },
-            { year: "2022–23", area: "9.04 M ha", prod: "28.16 M t", event: "Standing flood water delayed sowing", loss: "4.1%", severity: "moderate" },
-            { year: "2023–24", area: "9.59 M ha", prod: "31.43 M t", event: "Post-flood recovery period", loss: "1.0%", severity: "low" },
-            { year: "2024–25", area: "9.10 M ha", prod: "28.42 M t", event: "Prolonged heatwaves & localized rainfall", loss: "12.9%", severity: "severe" },
-            { year: "2025–26", area: "9.39 M ha", prod: "29.31 M t", event: "Above-normal temperatures", loss: "7.5%", severity: "elevated" }
+            { year: "2021–22", area: 8.9, prod: 26.20, yield: 2.94, loss: 1.39, potential: 27.59, lossPercent: "4.58%", event: "Extreme heat hit during the critical grain-filling stage", severity: "moderate" },
+            { year: "2022–23", area: 9.0, prod: 28.16, yield: 3.12, loss: 1.15, potential: 29.31, lossPercent: "4.1%", event: "Standing flood water delayed sowing", severity: "moderate" },
+            { year: "2023–24", area: 9.6, prod: 31.43, yield: 3.27, loss: 0.30, potential: 31.73, lossPercent: "1.0%", event: "Post-flood recovery period", severity: "low" },
+            { year: "2024–25", area: 8.9, prod: 28.42, yield: 3.24, loss: 3.66, potential: 32.08, lossPercent: "12.9%", event: "Prolonged heatwaves & localized rainfall", severity: "severe" },
+            { year: "2025–26", area: 9.3, prod: 29.31, yield: 3.12, loss: 2.19, potential: 31.50, lossPercent: "7.5%", event: "Above-normal temperatures", severity: "elevated" }
         ],
         chartData: {
             actual: [26.20, 28.16, 31.43, 28.42, 29.31],
-            potential: [27.59, 29.31, 31.74, 32.08, 31.50]
+            potential: [27.59, 29.31, 31.73, 32.08, 31.50]
         }
     },
     Rice: {
         title: "🍚 Rice Production · Climate Impact",
         prodUnit: "M tons",
-        lossLabel: "Loss",
-        prodLabel: "Area / Prod.",
+        lossLabel: "Loss Due to Disaster",
+        prodLabel: "Production",
         chartTitle: "Rice Yield: Actual vs Potential",
         chartYTitle: "Rice Yield (M tons)",
         legendActual: "Actual Yield",
         legendPotential: "Potential",
         gridMin: 6,
-        gridMax: 12,
-        gridLabels: [6, 8, 10, 12],
+        gridMax: 15,
+        gridLabels: [6, 9, 12, 15],
+        headers: {
+            year: "Year",
+            area: "Area<br><span style=\"font-size:11px;opacity:.7\">(M/Ha)</span>",
+            prod: "Prod.<br><span style=\"font-size:11px;opacity:.7\">(M Tons)</span>",
+            yield: "Avg Yield<br><span style=\"font-size:11px;opacity:.7\">(Tons/Ha)</span>",
+            loss: "Loss Due to<br>Disaster (M Tons)",
+            potential: "Potential Prod.<br>w/o Disaster (M Tons)"
+        },
         tableRows: [
-            { year: "2021–22", area: "3.53 M ha", prod: "9.32 M tons", event: "Heatwave occurred before the rice nursery transplantation season", loss: "3.22%", severity: "low" },
-            { year: "2022–23", area: "2.98 M ha", prod: "7.32 M tons", event: "Historic monsoon floods, waterlogging & damage to agricultural infrastructure", loss: "27.3%", severity: "severe" },
-            { year: "2023–24", area: "3.60 M ha", prod: "9.87 M tons", event: "Post-flood recovery, favorable monsoon rainfall, higher market prices", loss: "3.1%", severity: "low" },
-            { year: "2024–25", area: "3.80 M ha", prod: "9.72 M tons", event: "Prolonged heatwaves & localized rainfall", loss: "3.1%", severity: "low" },
-            { year: "2025–26", area: "3.03 M ha", prod: "9.99 M tons", event: "Late autumn flash floods before harvesting", loss: "15.1%", severity: "severe" }
+            { year: "2021–22", area: 3.5, prod: 9.32, yield: 2.64, loss: 2.18, potential: 11.50, lossPercent: "3.22%", event: "Heatwave occurred before the rice nursery transplantation season", severity: "low" },
+            { year: "2022–23", area: 2.9, prod: 7.32, yield: 2.46, loss: 3.18, potential: 10.50, lossPercent: "27.3%", event: "Historic monsoon floods, waterlogging & damage to agricultural infrastructure", severity: "severe" },
+            { year: "2023–24", area: 3.6, prod: 9.86, yield: 2.71, loss: 2.64, potential: 12.50, lossPercent: "3.1%", event: "Post-flood recovery, favorable monsoon rainfall, higher market prices", severity: "low" },
+            { year: "2024–25", area: 3.8, prod: 9.50, yield: 2.41, loss: 4.00, potential: 13.50, lossPercent: "3.1%", event: "Prolonged heatwaves & localized rainfall", severity: "low" },
+            { year: "2025–26", area: 3.3, prod: 9.99, yield: 2.55, loss: 3.01, potential: 13.00, lossPercent: "15.1%", event: "Late autumn flash floods before harvesting", severity: "severe" }
         ],
         chartData: {
-            actual: [9.32, 7.32, 9.78, 9.78, 9.99],
-            potential: [9.62, 9.32, 10.08, 10.08, 11.5]
+            actual: [9.32, 7.32, 9.86, 9.50, 9.99],
+            potential: [11.50, 10.50, 12.50, 13.50, 13.00]
         }
     },
     Cotton: {
         title: "🌱 Cotton Production · Climate Impact",
         prodUnit: "M Bales",
-        lossLabel: "Loss",
-        prodLabel: "Area / Prod.",
+        lossLabel: "Loss Due to Disaster",
+        prodLabel: "Production",
         chartTitle: "Cotton Yield: Actual vs Potential",
         chartYTitle: "Cotton Yield (M Bales)",
         legendActual: "Actual Yield",
         legendPotential: "Potential",
-        gridMin: 3,
-        gridMax: 12,
-        gridLabels: [3, 6, 9, 12],
+        gridMin: 2,
+        gridMax: 14,
+        gridLabels: [2, 6, 10, 14],
+        headers: {
+            year: "Year",
+            area: "Area<br><span style=\"font-size:11px;opacity:.7\">(M/Ha)</span>",
+            prod: "Prod.<br><span style=\"font-size:11px;opacity:.7\">(M T/B)</span>",
+            yield: "Avg Yield<br><span style=\"font-size:11px;opacity:.7\">(B/Ha)</span>",
+            loss: "Loss Due to<br>Disaster (M T/B)",
+            potential: "Potential Prod.<br>w/o Disaster (M T/B)"
+        },
         tableRows: [
-            { year: "2021–22", area: "1.93 M ha", prod: "8.33 M Bales", event: "Germination heat stress", loss: "12.7%", severity: "elevated" },
-            { year: "2022–23", area: "2.14 M ha", prod: "3.9 M Bales", event: "Historic monsoon floods", loss: "53%", severity: "severe" },
-            { year: "2023–24", area: "2.42 M ha", prod: "8.35 M Bales", event: "Recovery year floods and expansion in sown area", loss: "13.4%", severity: "elevated" },
-            { year: "2024–25", area: "2.02 M ha", prod: "5.52 M Bales", event: "Erratic monsoons outbreaks of whitefly and pink bollworm pests", loss: "28.4%", severity: "severe" },
-            { year: "2025–26", area: "2.11 M ha", prod: "7.05 M Bales", event: "High late-season moisture caused mature cotton bolls to rot and drop off, Leaf curl virus", loss: "14.9%", severity: "elevated" }
+            { year: "2021–22", area: 1.9, prod: 8.33, yield: 4.38, loss: 2.23, potential: 10.56, lossPercent: "12.7%", event: "Germination heat stress", severity: "elevated" },
+            { year: "2022–23", area: 2.1, prod: 4.19, yield: 2.00, loss: 4.41, potential: 8.31, lossPercent: "53%", event: "Historic monsoon floods", severity: "severe" },
+            { year: "2023–24", area: 2.4, prod: 10.19, yield: 4.25, loss: 2.58, potential: 12.77, lossPercent: "13.4%", event: "Recovery year floods and expansion in sown area", severity: "elevated" },
+            { year: "2024–25", area: 2.0, prod: 7.08, yield: 3.54, loss: 3.79, potential: 10.87, lossPercent: "28.4%", event: "Erratic monsoons outbreaks of whitefly and pink bollworm pests", severity: "severe" },
+            { year: "2025–26", area: 2.1, prod: 7.05, yield: 3.36, loss: 3.13, potential: 10.18, lossPercent: "14.9%", event: "High late-season moisture caused mature cotton bolls to rot and drop off, Leaf curl virus", severity: "elevated" }
         ],
         chartData: {
-            actual: [8.33, 3.9, 8.35, 5.52, 7.05],
-            potential: [10.56, 8.31, 10.72, 8.08, 10.5]
+            actual: [8.33, 4.19, 10.19, 7.08, 7.05],
+            potential: [10.56, 8.31, 12.77, 10.87, 10.18]
         }
     },
     Maize: {
         title: "🌽 Maize Production · Climate Impact",
         prodUnit: "M tons",
-        lossLabel: "Loss",
-        prodLabel: "Area / Prod.",
+        lossLabel: "Loss Due to Disaster",
+        prodLabel: "Production",
         chartTitle: "Maize Yield: Actual vs Potential",
         chartYTitle: "Maize Yield (M tons)",
         legendActual: "Actual Yield",
         legendPotential: "Potential",
-        gridMin: 8,
-        gridMax: 14,
-        gridLabels: [8, 10, 12, 14],
+        gridMin: 4,
+        gridMax: 13,
+        gridLabels: [4, 7, 10, 13],
+        headers: {
+            year: "Year",
+            area: "Area<br><span style=\"font-size:11px;opacity:.7\">(M/Ha)</span>",
+            prod: "Prod.<br><span style=\"font-size:11px;opacity:.7\">(M Tons)</span>",
+            yield: "Avg Yield<br><span style=\"font-size:11px;opacity:.7\">(Tons/Ha)</span>",
+            loss: "Loss Due to<br>Disaster (M Tons)",
+            potential: "Potential Prod.<br>w/o Disaster (M Tons)"
+        },
         tableRows: [
-            { year: "2021–22", area: "1.65 M ha", prod: "9.52 M tons", event: "Heat wave, Water scarcity", loss: "13.76%", severity: "elevated" },
-            { year: "2022–23", area: "1.71 M ha", prod: "8.74 M tons", event: "Catastrophic Floods, Pests and Diseases", loss: "17.2%", severity: "severe" },
-            { year: "2023–24", area: "1.75 M ha", prod: "9.21 M tons", event: "Post-Flood Recovery Period", loss: "10.0%", severity: "elevated" },
-            { year: "2024–25", area: "1.50 M ha", prod: "9.30 M tons", event: "Heatwaves during pollination, fertilization failure", loss: "4.3%", severity: "moderate" },
-            { year: "2025–26", area: "1.50 M ha", prod: "9.70 M tons", event: "Pest & Disease, Erratic Rainfall", loss: "23.7%", severity: "severe" }
+            { year: "2021–22", area: 1.6, prod: 9.52, yield: 5.77, loss: 1.31, potential: 10.83, lossPercent: "13.76%", event: "Heat wave, Water scarcity", severity: "elevated" },
+            { year: "2022–23", area: 1.7, prod: 10.96, yield: 6.39, loss: 0.36, potential: 11.32, lossPercent: "17.2%", event: "Catastrophic Floods, Pests and Diseases", severity: "severe" },
+            { year: "2023–24", area: 1.6, prod: 5.56, yield: 4.81, loss: 4.50, potential: 10.13, lossPercent: "10.0%", event: "Post-Flood Recovery Period", severity: "elevated" },
+            { year: "2024–25", area: 1.5, prod: 9.30, yield: 5.35, loss: 2.40, potential: 11.70, lossPercent: "4.3%", event: "Heatwaves during pollination, fertilization failure", severity: "moderate" },
+            { year: "2025–26", area: 1.7, prod: 8.79, yield: 6.46, loss: 2.51, potential: 11.30, lossPercent: "23.7%", event: "Pest & Disease, Erratic Rainfall", severity: "severe" }
         ],
         chartData: {
-            actual: [9.52, 8.74, 9.21, 9.3, 9.7],
-            potential: [10.83, 10.24, 10.13, 9.7, 12]
+            actual: [9.52, 10.96, 5.56, 9.30, 8.79],
+            potential: [10.83, 11.32, 10.13, 11.70, 11.30]
         }
     },
     Sugarcane: {
         title: "🎋 Sugarcane Production · Climate Impact",
         prodUnit: "M tons",
-        lossLabel: "Loss",
-        prodLabel: "Area / Prod.",
+        lossLabel: "Loss Due to Disaster",
+        prodLabel: "Production",
         chartTitle: "Sugarcane Yield: Actual vs Potential",
         chartYTitle: "Sugarcane Yield (M tons)",
         legendActual: "Actual Yield",
@@ -3506,16 +3543,24 @@ const cropData = {
         gridMin: 80,
         gridMax: 92,
         gridLabels: [80, 84, 88, 92],
+        headers: {
+            year: "Year",
+            area: "Area<br><span style=\"font-size:11px;opacity:.7\">(M/Ha)</span>",
+            prod: "Prod.<br><span style=\"font-size:11px;opacity:.7\">(M Tons)</span>",
+            yield: "Avg Yield<br><span style=\"font-size:11px;opacity:.7\">(Tons/Ha)</span>",
+            loss: "Loss Due to<br>Disaster (M Tons)",
+            potential: "Potential Prod.<br>w/o Disaster (M Tons)"
+        },
         tableRows: [
-            { year: "2021–22", area: "1.26 M ha", prod: "88.65 M tons", event: "Heat increased water requirements", loss: "0.68%", severity: "low" },
-            { year: "2022–23", area: "1.31 M ha", prod: "87.64 M tons", event: "Historic monsoon floods, delayed the industrial crushing season", loss: "1.7%", severity: "low" },
-            { year: "2023–24", area: "1.22 M ha", prod: "86.4 M tons", event: "Heat stress & canal water shortage", loss: "1.9%", severity: "low" },
-            { year: "2024–25", area: "1.14 M ha", prod: "83.5 M tons", event: "Shifting of land to rice due to Lower economic returns", loss: "1.8%", severity: "low" },
-            { year: "2025–26", area: "1.16 M ha", prod: "84.5 M tons", event: "Strong winds and late river surges", loss: "4.5%", severity: "moderate" }
+            { year: "2021–22", area: 1.2, prod: 88.65, yield: 70.31, loss: 1.10, potential: 89.75, lossPercent: "0.68%", event: "Heat increased water requirements", severity: "low" },
+            { year: "2022–23", area: 1.3, prod: 87.64, yield: 66.71, loss: 1.50, potential: 89.14, lossPercent: "1.7%", event: "Historic monsoon floods, delayed the industrial crushing season", severity: "low" },
+            { year: "2023–24", area: 1.3, prod: 86.40, yield: 73.88, loss: 1.64, potential: 88.04, lossPercent: "1.9%", event: "Heat stress & canal water shortage", severity: "low" },
+            { year: "2024–25", area: 1.2, prod: 83.50, yield: 66.89, loss: 1.54, potential: 85.04, lossPercent: "1.8%", event: "Shifting of land to rice due to Lower economic returns", severity: "low" },
+            { year: "2025–26", area: 1.1, prod: 84.50, yield: 74.54, loss: 3.80, potential: 88.30, lossPercent: "4.5%", event: "Strong winds and late river surges", severity: "moderate" }
         ],
         chartData: {
-            actual: [88.65, 87.64, 86.4, 83.5, 84.5],
-            potential: [89.25, 89.14, 88.04, 85.04, 88.3]
+            actual: [88.65, 87.64, 86.40, 83.50, 84.50],
+            potential: [89.75, 89.14, 88.04, 85.04, 88.30]
         }
     }
 };
@@ -3573,6 +3618,13 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
 
               --text-light:#F4F1EA;
               --text-muted:#A9B4D0;
+
+              /* Futuristic column colors from user template */
+              --ca:#43DCB3;
+              --cb:#63B3ED;
+              --cc:#ECC94B;
+              --cd:#FC814A;
+              --ce:#9A75EA;
             }
 
             .wheat-stack {
@@ -3642,61 +3694,74 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
             }
             .wheat-card.wheat-collapsed .wheat-card-body { max-height:0; opacity:0; padding:0 14px; }
 
-            /* Card A: table (large size like Impact Calculator) */
-            .wheat-table { width:100%; border-collapse:collapse; font-size:20px; color: var(--text-light); table-layout: fixed; }
-            .wheat-table th {
-              text-align:center;
-              font-size:16px;
-              font-weight:700;
-              color: var(--sunset-2);
-              text-transform:uppercase;
-              letter-spacing:.4px;
-              padding:0 4px 10px;
-              border-bottom:1px solid rgba(255,255,255,.12);
+            /* Card A: 6-column styled table matching user's template */
+            .crop-table {
+              width: 100%;
+              border-collapse: collapse;
+              font-family: 'Rajdhani', sans-serif;
+              font-size: 15px;
+              color: var(--text-light);
+              table-layout: fixed;
             }
-            .wheat-table th:nth-child(1){ width:20%; }
-            .wheat-table th:nth-child(2){ width:26%; }
-            .wheat-table th:nth-child(3){ width:32%; }
-            .wheat-table th:nth-child(4){ width:22%; }
-
-            .wheat-table td { padding:10px 4px; text-align:center; vertical-align:middle; border-bottom:1px solid rgba(255,255,255,.06); }
-
-            tr.wheat-data-row { opacity:0; animation: wheatRowIn .5s ease forwards; }
-            @keyframes wheatRowIn { from { opacity:0; transform: translateX(-10px); } to { opacity:1; transform: translateX(0); } }
-            tr.wheat-data-row:hover { background: rgba(255,255,255,.05); }
-            tr.wheat-data-row:last-child td { border-bottom:none; }
-
-            .wheat-year-cell { font-weight:700; color: var(--text-light); font-size:18px; }
-            .wheat-num-cell { color: var(--text-muted); line-height:1.55; font-size:16px; }
-            .wheat-num-cell .wheat-unit { font-size:13px; opacity:.7; }
-            .wheat-event-cell { color:#e6cfe0; font-style:italic; line-height:1.4; font-size:14px; }
-
-            /* Blinking loss badge: zoom blinks the bounding box + digit together in sync */
-            .wheat-loss-badge {
-              display:inline-flex;
-              align-items:center;
-              justify-content:center;
-              font-size:16px;
-              font-weight:700;
-              width:70px;
-              height:26px;
-              border-radius:13px;
-              color:#1c1c1c;
-              white-space:nowrap;
-              transform-origin:center;
-              animation: wheatZoomBlink 1.4s ease-in-out infinite;
+            .crop-table thead tr.hdr th {
+              text-align: center;
+              font-size: 13px;
+              font-weight: 700;
+              text-transform: uppercase;
+              letter-spacing: .3px;
+              padding: 8px 3px;
+              border-bottom: 2px solid rgba(255,255,255,.12);
+              line-height: 1.35;
             }
             
-            @keyframes wheatZoomBlink {
-              0% { transform: scale(0.85); opacity: 0.6; }
-              50% { transform: scale(1.15); opacity: 1; }
-              100% { transform: scale(0.85); opacity: 0.6; }
+            .crop-th-year  { color: var(--text-muted);         background: rgba(255,255,255,.04); width: 13%; }
+            .crop-th-area  { color: var(--ca);                 background: rgba(67,220,179,.1);   width: 13%; }
+            .crop-th-prod  { color: var(--cb);                 background: rgba(99,179,237,.1);   width: 15%; }
+            .crop-th-yield { color: var(--cc);                 background: rgba(236,201,75,.1);   width: 14%; }
+            .crop-th-loss  { color: var(--cd);                 background: rgba(252,129,74,.1);   width: 21%; }
+            .crop-th-potential { color: var(--ce);             background: rgba(154,117,234,.1);  width: 24%; }
+
+            .crop-table td {
+              padding: 10px 3px;
+              text-align: center;
+              vertical-align: middle;
+              border-bottom: 1px solid rgba(255,255,255,.06);
+              font-size: 15px;
             }
 
-            .wheat-loss-badge.low { background: var(--low); }
-            .wheat-loss-badge.moderate { background: var(--moderate); }
-            .wheat-loss-badge.elevated { background: var(--elevated); }
-            .wheat-loss-badge.severe { background: var(--severe); color:#fff; }
+            tr.crop-data-row { opacity: 0; animation: cropRowIn .5s ease forwards; }
+            @keyframes cropRowIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+            tr.crop-data-row:hover { background: rgba(255,255,255,.05); }
+            tr.crop-data-row:last-child td { border-bottom: none; }
+
+            .crop-td-year  { font-weight: 700; color: var(--text-light); }
+            .crop-td-area  { color: var(--ca); font-weight: 600; }
+            .crop-td-prod  { color: var(--cb); font-weight: 600; }
+            .crop-td-yield { color: var(--cc); font-weight: 600; }
+            .crop-td-potential { color: var(--ce); font-weight: 600; }
+
+            /* Loss badge: zoom-pulse, uniform speed, staggered per row */
+            .crop-loss-badge {
+              display: inline-block;
+              font-size: 14px;
+              font-weight: 700;
+              padding: 4px 10px;
+              border-radius: 12px;
+              color: #1c1c1c;
+              white-space: nowrap;
+              transform-origin: center;
+              animation: cropZoomPulse 1.2s ease-in-out infinite;
+            }
+            @keyframes cropZoomPulse {
+              0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255,255,255,.0); }
+              40%  { transform: scale(1.18); box-shadow: 0 0 0 5px rgba(255,255,255,.0); }
+              60%  { transform: scale(1.18); }
+              100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(255,255,255,.0); }
+            }
+            .crop-loss-badge.low      { background: var(--low); }
+            .crop-loss-badge.moderate { background: var(--moderate); }
+            .crop-loss-badge.elevated { background: var(--elevated); }
+            .crop-loss-badge.severe   { background: var(--severe); color: #fff; }
 
             /* Card B: SVG chart */
             .wheat-chart-svg { width:100%; height:auto; display:block; }
@@ -3818,24 +3883,36 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
         document.head.appendChild(style);
     }
 
+    const maxLoss = Math.max(...crop.tableRows.map(r => r.loss));
+    const getLossClass = (l) => {
+        const p = l / maxLoss;
+        if (p < .25) return 'low';
+        if (p < .5)  return 'moderate';
+        if (p < .75) return 'elevated';
+        return 'severe';
+    };
+
     // Build Table Rows dynamically
     const tableRowsHTML = crop.tableRows.map((row, idx) => {
         const delay = (idx * 0.09).toFixed(2);
-        const areaParts = row.area.split(' ');
-        const prodParts = row.prod.split(' ');
         
-        const areaVal = areaParts[0];
-        const areaUnit = areaParts.slice(1).join(' ');
-        
-        const prodVal = prodParts[0];
-        const prodUnit = prodParts.slice(1).join(' ');
+        const areaVal = row.area.toFixed(1);
+        const prodVal = row.prod.toFixed(2);
+        const yieldVal = row.yield.toFixed(2);
+        const lossVal = row.loss.toFixed(2);
+        const potentialVal = row.potential.toFixed(2);
+        const cls = getLossClass(row.loss);
         
         return `
-          <tr class="wheat-data-row" style="animation-delay: ${delay}s;">
-            <td class="wheat-year-cell">${row.year}</td>
-            <td class="wheat-num-cell">${areaVal}<span class="wheat-unit"> ${areaUnit}</span><br>${prodVal}<span class="wheat-unit"> ${prodUnit}</span></td>
-            <td class="wheat-event-cell">${row.event}</td>
-            <td><span class="wheat-loss-badge ${row.severity}"><span class="wheat-loss-digit">${row.loss}</span></span></td>
+          <tr class="crop-data-row" style="animation-delay: ${delay}s;">
+            <td class="crop-td-year">${row.year}</td>
+            <td class="crop-td-area">${areaVal}</td>
+            <td class="crop-td-prod">${prodVal}</td>
+            <td class="crop-td-yield">${yieldVal}</td>
+            <td>
+              <span class="crop-loss-badge ${cls}">${lossVal}</span>
+            </td>
+            <td class="crop-td-potential">${potentialVal}</td>
           </tr>
         `;
     }).join('\n');
@@ -3882,16 +3959,18 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
               </svg>
             </div>
             <div class="wheat-card-body">
-              <table class="wheat-table">
+              <table class="crop-table">
                 <thead>
-                  <tr>
-                    <th>Crop Year</th>
-                    <th>${crop.prodLabel}</th>
-                    <th>Major Disaster / Climate Event</th>
-                    <th>${crop.lossLabel}</th>
+                  <tr class="hdr">
+                    <th class="crop-th-year">${crop.headers.year}</th>
+                    <th class="crop-th-area">${crop.headers.area}</th>
+                    <th class="crop-th-prod">${crop.headers.prod}</th>
+                    <th class="crop-th-yield">${crop.headers.yield}</th>
+                    <th class="crop-th-loss">${crop.headers.loss}</th>
+                    <th class="crop-th-potential">${crop.headers.potential}</th>
                   </tr>
                 </thead>
-                <tbody id="wheat-tableBody">
+                <tbody id="crop-tableBody">
                   ${tableRowsHTML}
                 </tbody>
               </table>
@@ -4034,10 +4113,10 @@ function initWheatChartInteractivity(crop) {
             trackerPotential.style.display = 'block';
 
             // Update tooltip content
-            const lossVal = row.loss;
+            const lossVal = `${row.loss.toFixed(2)} ${crop.prodUnit} (${row.lossPercent})`;
             const eventText = row.event;
-            const actualVal = crop.chartData.actual[closestIdx];
-            const potentialVal = crop.chartData.potential[closestIdx];
+            const actualVal = row.prod.toFixed(2);
+            const potentialVal = row.potential.toFixed(2);
             
             tooltip.innerHTML = `
                 <div class="wheat-tooltip-year">${row.year}</div>
@@ -4159,7 +4238,72 @@ function toggleWheatCard(cardId) {
     }
 }
 
+let cropAutoplayInterval = null;
+let cropAutoplayIndex = -1;
+
+function handleCropAutoplayToggle(btn) {
+    const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
+    const playIcon = btn.querySelector('.autoplay-play-icon');
+    const pauseIcon = btn.querySelector('.autoplay-pause-icon');
+    
+    if (cropAutoplayInterval) {
+        stopCropAutoplay();
+    } else {
+        // Hide existing cards
+        hideWheatImpactOverlay();
+        
+        playIcon.style.display = 'none';
+        pauseIcon.style.display = 'inline-block';
+        btn.classList.add('playing');
+        
+        // Find currently checked crop, start from there
+        let currentCheckedIdx = crops.findIndex(crop => {
+            const toggle = document.getElementById('crop-' + crop.toLowerCase() + '-toggle');
+            return toggle && toggle.checked;
+        });
+        
+        cropAutoplayIndex = currentCheckedIdx !== -1 ? currentCheckedIdx : 0;
+        
+        const playStep = () => {
+            const currentCrop = crops[cropAutoplayIndex];
+            
+            crops.forEach((cropName, idx) => {
+                const toggle = document.getElementById('crop-' + cropName.toLowerCase() + '-toggle');
+                if (toggle) {
+                    toggle.checked = (idx === cropAutoplayIndex);
+                }
+                addWMSLayerToMap(cropName, idx === cropAutoplayIndex, 'crop-classification');
+            });
+            
+            cropAutoplayIndex = (cropAutoplayIndex + 1) % crops.length;
+        };
+        
+        playStep();
+        cropAutoplayInterval = setInterval(playStep, 3000);
+    }
+}
+
+function stopCropAutoplay() {
+    if (cropAutoplayInterval) {
+        clearInterval(cropAutoplayInterval);
+        cropAutoplayInterval = null;
+    }
+    const btn = document.querySelector('.crop-autoplay-btn');
+    if (btn) {
+        const playIcon = btn.querySelector('.autoplay-play-icon');
+        const pauseIcon = btn.querySelector('.autoplay-pause-icon');
+        if (playIcon && pauseIcon) {
+            playIcon.style.display = 'inline-block';
+            pauseIcon.style.display = 'none';
+        }
+        btn.classList.remove('playing');
+    }
+}
+
 function handleCropClassificationToggle(cropName, isChecked) {
+    // Stop autoplay when a toggle is manually clicked
+    stopCropAutoplay();
+
     const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
     
     if (isChecked) {
@@ -4253,6 +4397,7 @@ function handleOthersToggle(type, isActive) {
         }
 
         // Turn off all crop classification toggles and hide their WMS layers
+        stopCropAutoplay();
         const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
         crops.forEach(crop => {
             const el = document.getElementById('crop-' + crop.toLowerCase() + '-toggle');
@@ -4638,3 +4783,5 @@ window.handleCropClassificationToggle = handleCropClassificationToggle;
 window.toggleWheatCard = toggleWheatCard;
 window.showWheatImpactOverlay = showWheatImpactOverlay;
 window.hideWheatImpactOverlay = hideWheatImpactOverlay;
+window.handleCropAutoplayToggle = handleCropAutoplayToggle;
+window.stopCropAutoplay = stopCropAutoplay;
