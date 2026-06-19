@@ -94,7 +94,7 @@ const layerUrls = {
         'Balochistan': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3ABalochistan&outputFormat=application%2Fjson`
     },
     'Crop Classification': {
-        'Wheat': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Wheat_Dummy&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
+        'Wheat': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Wheat26&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
         'Rice': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Rice_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
         'Cotton': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Cotton_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
         'Maize': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Maize_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
@@ -2633,6 +2633,22 @@ function updatePrecipitationDisplay() {
 
 // Add WMS layer to map (for vegetation and crop topology months)
 function addWMSLayerToMap(layerName, visible = false, layerType = 'vegetation') {
+    if (layerType === 'crop-classification') {
+        const cropColors = {
+            'Wheat': '#1702fa',
+            'Cotton': '#A70084',
+            'Maize': '#FFFE03',
+            'Rice': '#267300',
+            'Sugarcane': '#E54C00'
+        };
+        const key = 'crop_class_' + layerName.toLowerCase();
+        if (visible) {
+            addLegendEntry(key, cropColors[layerName] || '#000000', layerName);
+        } else {
+            removeLegendEntry(key);
+        }
+    }
+
     // Check both Vegetation Cover and Crop Topology sections
     let wmsUrl;
     if (layerType === 'vegetation' && layerUrls['Vegetation Cover'] && layerUrls['Vegetation Cover'][layerName]) {
@@ -3586,7 +3602,7 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
         container.style.overflow = 'hidden';
         mapContainer.appendChild(container);
     }
-    
+
     container.style.display = 'block';
     wheatImpactState.element = container;
 
@@ -3887,7 +3903,7 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
     const getLossClass = (l) => {
         const p = l / maxLoss;
         if (p < .25) return 'low';
-        if (p < .5)  return 'moderate';
+        if (p < .5) return 'moderate';
         if (p < .75) return 'elevated';
         return 'severe';
     };
@@ -3895,14 +3911,14 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
     // Build Table Rows dynamically
     const tableRowsHTML = crop.tableRows.map((row, idx) => {
         const delay = (idx * 0.09).toFixed(2);
-        
+
         const areaVal = row.area.toFixed(1);
         const prodVal = row.prod.toFixed(2);
         const yieldVal = row.yield.toFixed(2);
         const lossVal = row.loss.toFixed(2);
         const potentialVal = row.potential.toFixed(2);
         const cls = getLossClass(row.loss);
-        
+
         return `
           <tr class="crop-data-row" style="animation-delay: ${delay}s;">
             <td class="crop-td-year">${row.year}</td>
@@ -4040,13 +4056,13 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
     // Turn off corresponding toggle checkboxes
     const droughtEl = document.getElementById('others-drought-impacts-toggle');
     if (droughtEl) droughtEl.checked = false;
-    
+
     const heatwaveEl = document.getElementById('others-heatwave-impacts-toggle');
     if (heatwaveEl) heatwaveEl.checked = false;
-    
+
     const comparisonEl = document.getElementById('others-comparison-toggle');
     if (comparisonEl) comparisonEl.checked = false;
-    
+
     const yieldEl = document.getElementById('others-yield-comparison-toggle');
     if (yieldEl) yieldEl.checked = false;
 
@@ -4117,7 +4133,7 @@ function initWheatChartInteractivity(crop) {
             const eventText = row.event;
             const actualVal = row.prod.toFixed(2);
             const potentialVal = row.potential.toFixed(2);
-            
+
             tooltip.innerHTML = `
                 <div class="wheat-tooltip-year">${row.year}</div>
                 <div class="wheat-tooltip-row">
@@ -4140,7 +4156,7 @@ function initWheatChartInteractivity(crop) {
             let tooltipY = ((targetActualY / 195) * rect.height) - 40;
 
             // Prevent tooltip from going outside card body bounds
-            const tooltipWidth = 220; 
+            const tooltipWidth = 220;
             if (tooltipX + tooltipWidth + 20 > rect.width) {
                 tooltipX = tooltipX - tooltipWidth - 20; // show on left of guide line
             } else {
@@ -4245,39 +4261,40 @@ function handleCropAutoplayToggle(btn) {
     const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
     const playIcon = btn.querySelector('.autoplay-play-icon');
     const pauseIcon = btn.querySelector('.autoplay-pause-icon');
-    
+
     if (cropAutoplayInterval) {
         stopCropAutoplay();
     } else {
         // Hide existing cards
         hideWheatImpactOverlay();
-        
+
         playIcon.style.display = 'none';
         pauseIcon.style.display = 'inline-block';
         btn.classList.add('playing');
-        
+
         // Find currently checked crop, start from there
         let currentCheckedIdx = crops.findIndex(crop => {
             const toggle = document.getElementById('crop-' + crop.toLowerCase() + '-toggle');
             return toggle && toggle.checked;
         });
-        
+
         cropAutoplayIndex = currentCheckedIdx !== -1 ? currentCheckedIdx : 0;
-        
+
         const playStep = () => {
             const currentCrop = crops[cropAutoplayIndex];
-            
+
             crops.forEach((cropName, idx) => {
                 const toggle = document.getElementById('crop-' + cropName.toLowerCase() + '-toggle');
+                const isNeedActive = (idx <= cropAutoplayIndex);
                 if (toggle) {
-                    toggle.checked = (idx === cropAutoplayIndex);
+                    toggle.checked = isNeedActive;
                 }
-                addWMSLayerToMap(cropName, idx === cropAutoplayIndex, 'crop-classification');
+                addWMSLayerToMap(cropName, isNeedActive, 'crop-classification');
             });
-            
+
             cropAutoplayIndex = (cropAutoplayIndex + 1) % crops.length;
         };
-        
+
         playStep();
         cropAutoplayInterval = setInterval(playStep, 3000);
     }
@@ -4305,7 +4322,7 @@ function handleCropClassificationToggle(cropName, isChecked) {
     stopCropAutoplay();
 
     const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
-    
+
     if (isChecked) {
         // Enforce mutual exclusivity within crop classification dropdown: turn off all other crop toggles
         crops.forEach(otherCrop => {
@@ -4317,13 +4334,13 @@ function handleCropClassificationToggle(cropName, isChecked) {
                 }
             }
         });
-        
+
         // Hide existing overlay display before swapping to prevent blink issues
         hideWheatImpactOverlay();
-        
+
         // Add WMS layer for the checked crop
         addWMSLayerToMap(cropName, true, 'crop-classification');
-        
+
         // Show impact widgets overlay if crop dataset exists
         if (cropData[cropName]) {
             showWheatImpactOverlay(cropName);
@@ -4331,7 +4348,7 @@ function handleCropClassificationToggle(cropName, isChecked) {
     } else {
         // Remove WMS layer for the unchecked crop
         addWMSLayerToMap(cropName, false, 'crop-classification');
-        
+
         // Hide impact widgets overlay
         hideWheatImpactOverlay();
     }
@@ -4447,7 +4464,7 @@ let vulnerableBlinkInterval = null;
 
 function showVulnerableDistricts() {
     if (!map) return;
-    
+
     // Add source if it doesn't exist
     if (!map.getSource('vulnerable-districts-source')) {
         map.addSource('vulnerable-districts-source', {
@@ -4463,7 +4480,7 @@ function showVulnerableDistricts() {
             'type': 'fill',
             'source': 'vulnerable-districts-source',
             'paint': {
-                'fill-color': '#ff0000', 
+                'fill-color': '#ff0000',
                 'fill-opacity': 0.8,
                 'fill-outline-color': '#ffffff'
             }
@@ -4475,12 +4492,12 @@ function showVulnerableDistricts() {
     // Continuously blink and move to top
     let blinkOpacity = 0.8;
     let fadeOut = true;
-    
+
     if (vulnerableBlinkInterval) clearInterval(vulnerableBlinkInterval);
-    
+
     vulnerableBlinkInterval = setInterval(() => {
         if (!map.getLayer('vulnerable-districts-layer')) return;
-        
+
         // Ensure it stays on top by constantly moving it to the end of layers
         map.moveLayer('vulnerable-districts-layer');
 
@@ -4664,9 +4681,17 @@ function initMap() {
     map.addControl(new DistrictBlinkControl(), 'top-right');
 
     // Map loaded event
+    let mapLoaded = false;
+    const pendingLayerOps = [];
+
     map.on('load', function () {
-        console.log('Map loaded successfully');
+        mapLoaded = true;
+        pendingLayerOps.forEach(fn => fn());
+        pendingLayerOps.length = 0;
     });
+    function whenMapReady(fn) {
+    if (mapLoaded) { fn(); } else { pendingLayerOps.push(fn); }
+}
 }
 
 // Export for resize handler

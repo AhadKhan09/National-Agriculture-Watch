@@ -667,6 +667,17 @@
                                     <button class="portals-close-btn" onclick="togglePortalsMenu()">&times;</button>
                                 </div>
                                 
+                                <!-- Collective Crops Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-toggle-container">
+                                        <a href="#" class="portals-toggle-btn" id="collective-crops-btn" onclick="handleCollectiveCropsClick()">Collective Crops</a>
+                                        <label class="portals-toggle-switch">
+                                            <input type="checkbox" id="collective-crops-toggle" onchange="handleCollectiveCropsToggle(this.checked)">
+                                            <span class="portals-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <!-- LIMS Section -->
                                 <div class="portals-menu-section">
                                     <div class="portals-toggle-container">
@@ -797,6 +808,24 @@
                                         <span class="portals-accordion-icon">▼</span>
                                     </div>
                                     <div id="graphs-new" class="portals-accordion-content">
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Crop Production')">Crop Production</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="crop-production-toggle" onchange="handleNewGraphToggle(this.checked, 'crop-production')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Crop Loss')">Crop Loss</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="crop-loss-toggle" onchange="handleNewGraphToggle(this.checked, 'crop-loss')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
                                         <div class="portals-menu-section">
                                             <div class="portals-toggle-container">
                                                 <a href="#" class="portals-toggle-btn portals-graph-new-btn" onclick="handleNewGraphClick('Balochistan Crop Distribution')">Balochistan Crop Distribution</a>

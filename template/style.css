@@ -1636,19 +1636,22 @@ body {
 
 :fullscreen .portals-hamburger-btn,
 :-webkit-full-screen .portals-hamburger-btn {
-    top: 100px !important;
+    top: 15px !important;
+    left: 15px !important;
     z-index: 10000 !important;
 }
 
 :fullscreen .portals-fullscreen-btn,
 :-webkit-full-screen .portals-fullscreen-btn {
-    top: 100px !important;
+    top: 15px !important;
+    right: 15px !important;
     z-index: 10000 !important;
 }
 
 :fullscreen .portals-sidebar,
 :-webkit-full-screen .portals-sidebar {
-    top: 135px !important;
+    top: 50px !important;
+    left: 15px !important;
     z-index: 10000 !important;
 }
 
