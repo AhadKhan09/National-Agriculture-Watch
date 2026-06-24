@@ -1433,12 +1433,12 @@ body {
     box-shadow: 0 6px 18px rgba(0,0,0,0.12);
     border: 1px solid rgba(0,0,0,0.06);
     z-index: 1100;
-    font-size: 0.8rem;
+    font-size: 1.5rem;
     color: #333;
-    min-width: 160px;
+    min-width: 200px;
 }
 .map-legend .legend-title {
-    font-weight: 700;
+    font-weight: 800;
     margin-bottom: 4px;
 }
 .map-legend .legend-item {
@@ -1470,8 +1470,8 @@ body {
     background: currentColor;
 }
 .map-legend .legend-label {
-    font-size: 0.82rem;
-    font-weight: 600; /* heavier label text */
+    font-size: 1.2rem;
+    font-weight: 700; /* heavier label text */
 }
 
 /* Simex map legend (similar to main map but scoped to simex-map) */

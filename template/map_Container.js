@@ -2,7 +2,7 @@
 const layerUrls = {
     'National Boundary': `http://${Ahad}:8080/geoserver/Pak_Boundaries/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Pak_Boundaries%3ANational_Boundary&outputFormat=application%2Fjson`,
     'Provincial Boundary': `http://${Ahad}:8080/geoserver/Pak_Boundaries/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Pak_Boundaries%3AProvincial_Boundary&outputFormat=application%2Fjson`,
-    'District Boundary': `http://${Ahad}:8080/geoserver/Pak_Boundaries/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Pak_Boundaries%3ADistrict_Boundary&outputFormat=application%2Fjson`,
+    'District Boundary': 'http://172.18.1.85:8080/geoserver/Pak_Boundaries/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Pak_Boundaries%3ADistrict_Boundary&outputFormat=application%2Fjson',
     'Tehsil Boundary': `http://${Ahad}:8080/geoserver/Pak_Boundaries/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Tehsil_Boundary&outputFormat=application%2Fjson`,
     'Vegetation Cover': {
         'January': `http://${mam_Seemal}:8080/geoserver/landslide_final/wms?service=WMS&version=1.1.0&request=GetMap&layers=landslide_final:January_Average&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
@@ -593,10 +593,10 @@ function ensureDistrictBoundaryLayers() {
                 id: 'districtBoundary_label',
                 type: 'symbol',
                 source: 'districtBoundary',
-                minzoom: 6,
+                minzoom: 5.5,
                 layout: {
                     visibility: 'none',
-                    'text-field': ['coalesce', ['get', 'District'], ['get', 'DISTRICT'], ''],
+                    'text-field': ['coalesce', ['get', 'Districts'], ['get', 'District'], ['get', 'DISTRICT'], ['get', 'district'], ['get', 'NAME_2'], ['get', 'name'], ''],
                     'text-letter-spacing': 0.1,
                     'text-size': 13,
                     'text-offset': [0, 0],
@@ -604,7 +604,8 @@ function ensureDistrictBoundaryLayers() {
                 },
                 paint: {
                     'text-color': 'black',
-                    'text-halo-color': '#000000'
+                    'text-halo-color': '#ffffff',
+                    'text-halo-width': 1.5
                 }
             });
 
@@ -616,7 +617,7 @@ function ensureDistrictBoundaryLayers() {
                     'fill-color': 'red',
                     'fill-opacity': 0.5
                 },
-                filter: ['in', ['coalesce', ['get', 'District'], ['get', 'DISTRICT']], ['literal', []]]
+                filter: ['in', ['coalesce', ['get', 'Districts'], ['get', 'District'], ['get', 'DISTRICT'], ['get', 'district'], ['get', 'NAME_2'], ['get', 'name']], ['literal', []]]
             });
 
             if (!districtBoundaryEventsBound) {
@@ -628,7 +629,12 @@ function ensureDistrictBoundaryLayers() {
 
                     if (e.features && e.features.length > 0) {
                         const clickedFeature = e.features[0];
-                        const districtName = clickedFeature.properties.District || clickedFeature.properties.DISTRICT;
+                        const districtName = clickedFeature.properties.Districts ||
+                                             clickedFeature.properties.District || 
+                                             clickedFeature.properties.DISTRICT || 
+                                             clickedFeature.properties.district || 
+                                             clickedFeature.properties.NAME_2 || 
+                                             clickedFeature.properties.name;
 
                         if (!districtName) {
                             return;
@@ -642,7 +648,7 @@ function ensureDistrictBoundaryLayers() {
 
                         map.setFilter('DistrictBoundaryHighlight', [
                             'in',
-                            ['coalesce', ['get', 'District'], ['get', 'DISTRICT']],
+                            ['coalesce', ['get', 'Districts'], ['get', 'District'], ['get', 'DISTRICT'], ['get', 'district'], ['get', 'NAME_2'], ['get', 'name']],
                             ['literal', selectedDistrict]
                         ]);
                     }
@@ -3449,6 +3455,24 @@ const cropData = {
         chartData: {
             actual: [26.20, 28.16, 31.43, 28.42, 29.31],
             potential: [27.59, 29.31, 31.73, 32.08, 31.50]
+        },
+        chartDataB: {
+            actual: [26.2, 28.16, 31.43, 28.42, 29.31, 28.3, 27.5, 28.4, 27.5],
+            potential: [30.0, 32.0, 34.0, 32.08, 32.5, 32.8, 33.0, 33.5, 33.0],
+            gridMin: 24,
+            gridMax: 36,
+            gridLabels: [24, 28, 32, 36],
+            tableRows: [
+                { year: "2021–22", prod: 26.2, potential: 30.0, loss: 3.8, lossPercent: "12.7%", event: "Extreme heat hit during the critical grain-filling stage", severity: "elevated" },
+                { year: "2022–23", prod: 28.16, potential: 32.0, loss: 3.84, lossPercent: "12.0%", event: "Standing flood water delayed sowing", severity: "elevated" },
+                { year: "2023–24", prod: 31.43, potential: 34.0, loss: 2.57, lossPercent: "7.6%", event: "Post-flood recovery period", severity: "moderate" },
+                { year: "2024–25", prod: 28.42, potential: 32.08, loss: 3.66, lossPercent: "11.4%", event: "Prolonged heatwaves & localized rainfall", severity: "elevated" },
+                { year: "2025–26", prod: 29.31, potential: 32.5, loss: 3.19, lossPercent: "9.8%", event: "Above-normal temperatures", severity: "moderate" },
+                { year: "2026–27", prod: 28.3, potential: 32.8, loss: 4.5, lossPercent: "13.7%", event: "Unexpected precipitation and minor pest outbreaks", severity: "elevated" },
+                { year: "2027–28", prod: 27.5, potential: 33.0, loss: 5.5, lossPercent: "16.7%", event: "Fluctuating winter temperatures", severity: "elevated" },
+                { year: "2028–29", prod: 28.4, potential: 33.5, loss: 5.1, lossPercent: "15.2%", event: "Short-term dry spell during early tillering", severity: "elevated" },
+                { year: "2029–30", prod: 27.5, potential: 33.0, loss: 5.5, lossPercent: "16.7%", event: "Warm wind gusts during grain filling", severity: "elevated" }
+            ]
         }
     },
     Rice: {
@@ -3481,6 +3505,24 @@ const cropData = {
         chartData: {
             actual: [9.32, 7.32, 9.86, 9.50, 9.99],
             potential: [11.50, 10.50, 12.50, 13.50, 13.00]
+        },
+        chartDataB: {
+            actual: [9.32, 7.32, 9.86, 9.5, 9.99, 9.4, 9.15, 9.35, 9.05],
+            potential: [11.5, 12.0, 12.5, 13.5, 13.0, 13.5, 14.0, 13.75, 14.0],
+            gridMin: 6,
+            gridMax: 15,
+            gridLabels: [6, 9, 12, 15],
+            tableRows: [
+                { year: "2021–22", prod: 9.32, potential: 11.5, loss: 2.18, lossPercent: "19.0%", event: "Heatwave occurred before the rice nursery transplantation season", severity: "elevated" },
+                { year: "2022–23", prod: 7.32, potential: 12.0, loss: 4.68, lossPercent: "39.0%", event: "Historic monsoon floods, waterlogging & damage to agricultural infrastructure", severity: "severe" },
+                { year: "2023–24", prod: 9.86, potential: 12.5, loss: 2.64, lossPercent: "21.1%", event: "Post-flood recovery, favorable monsoon rainfall, higher market prices", severity: "elevated" },
+                { year: "2024–25", prod: 9.5, potential: 13.5, loss: 4.0, lossPercent: "29.6%", event: "Prolonged heatwaves & localized rainfall", severity: "elevated" },
+                { year: "2025–26", prod: 9.99, potential: 13.0, loss: 3.01, lossPercent: "23.2%", event: "Late autumn flash floods before harvesting", severity: "elevated" },
+                { year: "2026–27", prod: 9.4, potential: 13.5, loss: 4.1, lossPercent: "30.4%", event: "Canal water constraints in southern districts", severity: "severe" },
+                { year: "2027–28", prod: 9.15, potential: 14.0, loss: 4.85, lossPercent: "34.6%", event: "High humidity leading to minor bacterial leaf blight", severity: "severe" },
+                { year: "2028–29", prod: 9.35, potential: 13.75, loss: 4.4, lossPercent: "32.0%", event: "Irregular summer monsoon patterns", severity: "severe" },
+                { year: "2029–30", prod: 9.05, potential: 14.0, loss: 4.95, lossPercent: "35.4%", event: "Elevated night temperatures during grain filling", severity: "severe" }
+            ]
         }
     },
     Cotton: {
@@ -3513,6 +3555,24 @@ const cropData = {
         chartData: {
             actual: [8.33, 4.19, 10.19, 7.08, 7.05],
             potential: [10.56, 8.31, 12.77, 10.87, 10.18]
+        },
+        chartDataB: {
+            actual: [8.33, 4.19, 9.19, 7.08, 7.05, 6.83, 6.65, 7.4, 7.15],
+            potential: [10.56, 10.3, 11.0, 11.5, 10.5, 10.52, 10.82, 11.05, 11.3],
+            gridMin: 2,
+            gridMax: 14,
+            gridLabels: [2, 6, 10, 14],
+            tableRows: [
+                { year: "2021–22", prod: 8.33, potential: 10.56, loss: 2.23, lossPercent: "21.1%", event: "Germination heat stress", severity: "elevated" },
+                { year: "2022–23", prod: 4.19, potential: 10.3, loss: 6.11, lossPercent: "59.3%", event: "Historic monsoon floods", severity: "severe" },
+                { year: "2023–24", prod: 9.19, potential: 11.0, loss: 1.81, lossPercent: "16.5%", event: "Recovery year floods and expansion in sown area", severity: "elevated" },
+                { year: "2024–25", prod: 7.08, potential: 11.5, loss: 4.42, lossPercent: "38.4%", event: "Erratic monsoons outbreaks of whitefly and pink bollworm pests", severity: "severe" },
+                { year: "2025–26", prod: 7.05, potential: 10.5, loss: 3.45, lossPercent: "32.9%", event: "High late-season moisture caused mature cotton bolls to rot and drop off, Leaf curl virus", severity: "severe" },
+                { year: "2026–27", prod: 6.83, potential: 10.52, loss: 3.69, lossPercent: "35.1%", event: "Pink bollworm pest infestation and heat anomalies", severity: "severe" },
+                { year: "2027–28", prod: 6.65, potential: 10.82, loss: 4.17, lossPercent: "38.5%", event: "Excessive rainfall during early boll formation", severity: "severe" },
+                { year: "2028–29", prod: 7.4, potential: 11.05, loss: 3.65, lossPercent: "33.0%", event: "Favorable weather and controlled pest management", severity: "severe" },
+                { year: "2029–30", prod: 7.15, potential: 11.3, loss: 4.15, lossPercent: "36.7%", event: "Slight water shortage during vegetative growth", severity: "severe" }
+            ]
         }
     },
     Maize: {
@@ -3545,6 +3605,24 @@ const cropData = {
         chartData: {
             actual: [9.52, 10.96, 5.56, 9.30, 8.79],
             potential: [10.83, 11.32, 10.13, 11.70, 11.30]
+        },
+        chartDataB: {
+            actual: [9.52, 5.56, 9.35, 9.3, 8.79, 8.45, 8.03, 8.35, 8.09],
+            potential: [10.83, 10.5, 11.32, 11.7, 11.3, 11.6, 12.0, 12.4, 12.8],
+            gridMin: 4,
+            gridMax: 13,
+            gridLabels: [4, 7, 10, 13],
+            tableRows: [
+                { year: "2021–22", prod: 9.52, potential: 10.83, loss: 1.31, lossPercent: "12.1%", event: "Heat wave, Water scarcity", severity: "moderate" },
+                { year: "2022–23", prod: 5.56, potential: 10.5, loss: 4.94, lossPercent: "47.0%", event: "Catastrophic Floods, Pests and Diseases", severity: "severe" },
+                { year: "2023–24", prod: 9.35, potential: 11.32, loss: 1.97, lossPercent: "17.4%", event: "Post-Flood Recovery Period", severity: "elevated" },
+                { year: "2024–25", prod: 9.3, potential: 11.7, loss: 2.4, lossPercent: "20.5%", event: "Heatwaves during pollination, fertilization failure", severity: "elevated" },
+                { year: "2025–26", prod: 8.79, potential: 11.3, loss: 2.51, lossPercent: "22.2%", event: "Pest & Disease, Erratic Rainfall", severity: "elevated" },
+                { year: "2026–27", prod: 8.45, potential: 11.6, loss: 3.15, lossPercent: "27.2%", event: "High summer temperatures affecting pollination", severity: "elevated" },
+                { year: "2027–28", prod: 8.03, potential: 12.0, loss: 3.97, lossPercent: "33.1%", event: "Shortage of quality seed supplies and heat stress", severity: "severe" },
+                { year: "2028–29", prod: 8.35, potential: 12.4, loss: 4.05, lossPercent: "32.7%", event: "Favorable late monsoon rainfall", severity: "severe" },
+                { year: "2029–30", prod: 8.09, potential: 12.8, loss: 4.71, lossPercent: "36.8%", event: "Increased incidence of stem borer insect attacks", severity: "severe" }
+            ]
         }
     },
     Sugarcane: {
@@ -3577,6 +3655,24 @@ const cropData = {
         chartData: {
             actual: [88.65, 87.64, 86.40, 83.50, 84.50],
             potential: [89.75, 89.14, 88.04, 85.04, 88.30]
+        },
+        chartDataB: {
+            actual: [88.65, 87.64, 86.4, 83.5, 84.5, 84.03, 83.85, 85.2, 85.0],
+            potential: [89.75, 89.14, 88.04, 86.04, 88.3, 87.6, 88.1, 89.0, 89.5],
+            gridMin: 80,
+            gridMax: 92,
+            gridLabels: [80, 84, 88, 92],
+            tableRows: [
+                { year: "2021–22", prod: 88.65, potential: 89.75, loss: 1.1, lossPercent: "1.2%", event: "Heat increased water requirements", severity: "low" },
+                { year: "2022–23", prod: 87.64, potential: 89.14, loss: 1.5, lossPercent: "1.7%", event: "Historic monsoon floods, delayed the industrial crushing season", severity: "low" },
+                { year: "2023–24", prod: 86.4, potential: 88.04, loss: 1.64, lossPercent: "1.9%", event: "Heat stress & canal water shortage", severity: "low" },
+                { year: "2024–25", prod: 83.5, potential: 86.04, loss: 2.54, lossPercent: "3.0%", event: "Shifting of land to rice due to Lower economic returns", severity: "low" },
+                { year: "2025–26", prod: 84.5, potential: 88.3, loss: 3.8, lossPercent: "4.3%", event: "Strong winds and late river surges", severity: "low" },
+                { year: "2026–27", prod: 84.03, potential: 87.6, loss: 3.57, lossPercent: "4.1%", event: "Canal lining renovations causing temporary dry periods", severity: "low" },
+                { year: "2027–28", prod: 83.85, potential: 88.1, loss: 4.25, lossPercent: "4.8%", event: "Mild lodging due to high winds during monsoons", severity: "low" },
+                { year: "2028–29", prod: 85.2, potential: 89.0, loss: 3.8, lossPercent: "4.3%", event: "Favorable rainfall and timely fertilizer distribution", severity: "low" },
+                { year: "2029–30", prod: 85.0, potential: 89.5, loss: 4.5, lossPercent: "5.0%", event: "Crushing delays due to market price disputes", severity: "moderate" }
+            ]
         }
     }
 };
@@ -3933,33 +4029,48 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
         `;
     }).join('\n');
 
-    // Build Chart Paths & coordinates dynamically
-    const xCoords = [60, 132.5, 205, 277.5, 350];
-    const range = crop.gridMax - crop.gridMin;
-    const actualY = crop.chartData.actual.map(v => 130 - ((v - crop.gridMin) / range) * 120);
-    const potentialY = crop.chartData.potential.map(v => 130 - ((v - crop.gridMin) / range) * 120);
+    // Build Chart Paths & coordinates dynamically for Card B (9 years: 2021-22 to 2029-30)
+    const xCoords = [60, 96.25, 132.5, 168.75, 205, 241.25, 277.5, 313.75, 350];
+    const gridMin = crop.chartDataB.gridMin;
+    const gridMax = crop.chartDataB.gridMax;
+    const gridLabels = crop.chartDataB.gridLabels;
+    const range = gridMax - gridMin;
+    
+    const actualY = crop.chartDataB.actual.map(v => 130 - ((v - gridMin) / range) * 120);
+    const potentialY = crop.chartDataB.potential.map(v => 130 - ((v - gridMin) / range) * 120);
 
-    const actualPathD = `M${xCoords[0]},${actualY[0]} L${xCoords[1]},${actualY[1]} L${xCoords[2]},${actualY[2]} L${xCoords[3]},${actualY[3]} L${xCoords[4]},${actualY[4]}`;
-    const potentialPathD = `M${xCoords[0]},${potentialY[0]} L${xCoords[1]},${potentialY[1]} L${xCoords[2]},${potentialY[2]} L${xCoords[3]},${potentialY[3]} L${xCoords[4]},${potentialY[4]}`;
-    const gapFillD = `M${xCoords[0]},${actualY[0]} L${xCoords[1]},${actualY[1]} L${xCoords[2]},${actualY[2]} L${xCoords[3]},${actualY[3]} L${xCoords[4]},${actualY[4]} L${xCoords[4]},${potentialY[4]} L${xCoords[3]},${potentialY[3]} L${xCoords[2]},${potentialY[2]} L${xCoords[1]},${potentialY[1]} L${xCoords[0]},${potentialY[0]} Z`;
+    const actualPathD = 'M' + xCoords.map((x, i) => `${x},${actualY[i]}`).join(' L');
+    const potentialPathD = 'M' + xCoords.map((x, i) => `${x},${potentialY[i]}`).join(' L');
+    
+    const actualPoints = xCoords.map((x, i) => `${x},${actualY[i]}`).join(' L');
+    const potentialPoints = xCoords.slice().reverse().map((x, i) => {
+        const revIdx = xCoords.length - 1 - i;
+        return `${x},${potentialY[revIdx]}`;
+    }).join(' L');
+    const gapFillD = `M${actualPoints} L${potentialPoints} Z`;
 
-    const gridLabelsHTML = crop.gridLabels.map((lbl, idx) => {
+    const gridLabelsHTML = gridLabels.map((lbl, idx) => {
         const yVal = 133 - idx * 40;
         return `<text class="wheat-axis-label wheat-axis-label-y" x="50" y="${yVal}">${lbl}</text>`;
     }).join('\n');
 
     const actualCircles = actualY.map((y, idx) => {
-        const val = crop.chartData.actual[idx];
-        const delay = (1.3 + idx * 0.15).toFixed(2);
-        const year = crop.tableRows[idx].year;
+        const val = crop.chartDataB.actual[idx];
+        const delay = (1.3 + idx * 0.1).toFixed(2);
+        const year = crop.chartDataB.tableRows[idx].year;
         return `<circle class="wheat-point point-actual" cx="${xCoords[idx]}" cy="${y}" r="3.2" style="animation-delay:${delay}s"><title>${year} Actual: ${val} ${crop.prodUnit}</title></circle>`;
     }).join('\n');
 
     const potentialCircles = potentialY.map((y, idx) => {
-        const val = crop.chartData.potential[idx];
-        const delay = (1.3 + idx * 0.15).toFixed(2);
-        const year = crop.tableRows[idx].year;
+        const val = crop.chartDataB.potential[idx];
+        const delay = (1.3 + idx * 0.1).toFixed(2);
+        const year = crop.chartDataB.tableRows[idx].year;
         return `<circle class="wheat-point point-potential" cx="${xCoords[idx]}" cy="${y}" r="2.6" style="animation-delay:${delay}s"><title>${year} Potential: ${val} ${crop.prodUnit}</title></circle>`;
+    }).join('\n');
+
+    const xLabelsHTML = crop.chartDataB.tableRows.map((row, idx) => {
+        const displayYear = row.year.replace('20', '').replace('20', '');
+        return `<text class="wheat-axis-label wheat-axis-label-x" x="${xCoords[idx]}" y="152">${displayYear}</text>`;
     }).join('\n');
 
     container.innerHTML = `
@@ -4026,11 +4137,7 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
                 <circle id="wheat-tracker-actual" class="wheat-tracker-highlight point-actual-highlight" cx="0" cy="0" r="5" style="display:none;" />
                 <circle id="wheat-tracker-potential" class="wheat-tracker-highlight point-potential-highlight" cx="0" cy="0" r="5" style="display:none;" />
 
-                <text class="wheat-axis-label wheat-axis-label-x" x="60"    y="152">21–22</text>
-                <text class="wheat-axis-label wheat-axis-label-x" x="132.5" y="152">22–23</text>
-                <text class="wheat-axis-label wheat-axis-label-x" x="205"   y="152">23–24</text>
-                <text class="wheat-axis-label wheat-axis-label-x" x="277.5" y="152">24–25</text>
-                <text class="wheat-axis-label wheat-axis-label-x" x="350"   y="152">25–26</text>
+                ${xLabelsHTML}
 
                 <text class="wheat-axis-title" x="205" y="178">Crop Year</text>
               </svg>
@@ -4085,10 +4192,12 @@ function initWheatChartInteractivity(crop) {
 
     if (!svg || !tooltip) return;
 
-    const xCoords = [60, 132.5, 205, 277.5, 350];
-    const range = crop.gridMax - crop.gridMin;
-    const actualY = crop.chartData.actual.map(v => 130 - ((v - crop.gridMin) / range) * 120);
-    const potentialY = crop.chartData.potential.map(v => 130 - ((v - crop.gridMin) / range) * 120);
+    const xCoords = [60, 96.25, 132.5, 168.75, 205, 241.25, 277.5, 313.75, 350];
+    const gridMin = crop.chartDataB.gridMin;
+    const gridMax = crop.chartDataB.gridMax;
+    const range = gridMax - gridMin;
+    const actualY = crop.chartDataB.actual.map(v => 130 - ((v - gridMin) / range) * 120);
+    const potentialY = crop.chartDataB.potential.map(v => 130 - ((v - gridMin) / range) * 120);
 
     svg.addEventListener('mousemove', (e) => {
         const rect = svg.getBoundingClientRect();
@@ -4112,7 +4221,7 @@ function initWheatChartInteractivity(crop) {
             const targetX = xCoords[closestIdx];
             const targetActualY = actualY[closestIdx];
             const targetPotentialY = potentialY[closestIdx];
-            const row = crop.tableRows[closestIdx];
+            const row = crop.chartDataB.tableRows[closestIdx];
 
             // Position and show vertical line
             trackerLine.setAttribute('x1', targetX);
