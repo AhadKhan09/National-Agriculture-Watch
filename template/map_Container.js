@@ -93,6 +93,13 @@ const layerUrls = {
         'KPK': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3AKPK&outputFormat=application%2Fjson`,
         'Balochistan': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3ABalochistan&outputFormat=application%2Fjson`
     },
+    'Crop Highlights': {
+        'Wheat': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3AWheat_districts&outputFormat=application%2Fjson`,
+        'Rice': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3ARice_districts&outputFormat=application%2Fjson`,
+        'Cotton': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3ACotton_districts&outputFormat=application%2Fjson`,
+        'Maize': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3AMaize_districts&outputFormat=application%2Fjson`,
+        'Sugarcane': `http://${Ahad}:8080/geoserver/Agri_Portal/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=Agri_Portal%3ASugarcane_districts&outputFormat=application%2Fjson`
+    },
     'Crop Classification': {
         'Wheat': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Wheat26&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
         'Rice': `http://${Ahad}:8080/geoserver/Agri_Portal/wms?service=WMS&version=1.1.0&request=GetMap&layers=Agri_Portal:Rice_Agri&bbox={bbox-epsg-3857}&width=768&height=558&srs=EPSG:3857&styles=&format=image/png&transparent=true`,
@@ -551,6 +558,42 @@ function ensureAffectedAreasAboveThematic() {
 let districtBoundaryEventsBound = false;
 let tehsilBoundaryEventsBound = false;
 
+function loadLargeVectorBoundary(url) {
+    return new Promise((resolve, reject) => {
+        const workerBlobCode = `
+            self.onmessage = async function(e) {
+                try {
+                    const response = await fetch(e.data.url);
+                    const geojson = await response.json();
+                    self.postMessage({ success: true, data: geojson });
+                } catch (error) {
+                    self.postMessage({ success: false, error: error.message });
+                }
+            };
+        `;
+        
+        const blob = new Blob([workerBlobCode], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+        
+        worker.postMessage({ url: url });
+        
+        worker.onmessage = function(event) {
+            const { success, data, error } = event.data;
+            worker.terminate();
+            
+            if (success) {
+                resolve(data);
+            } else {
+                reject(new Error(error));
+            }
+        };
+        worker.onerror = function(err) {
+            worker.terminate();
+            reject(err);
+        };
+    });
+}
+
 function ensureDistrictBoundaryLayers() {
     if (map.getSource('districtBoundary')) {
         return Promise.resolve();
@@ -558,8 +601,7 @@ function ensureDistrictBoundaryLayers() {
 
     const url = layerUrls['District Boundary'];
 
-    return fetch(url)
-        .then(response => response.json())
+    return loadLargeVectorBoundary(url)
         .then(data => {
             map.addSource('districtBoundary', {
                 type: 'geojson',
@@ -674,8 +716,7 @@ function ensureTehsilBoundaryLayers() {
 
     const url = layerUrls['Tehsil Boundary'];
 
-    return fetch(url)
-        .then(response => response.json())
+    return loadLargeVectorBoundary(url)
         .then(data => {
             map.addSource('tehsilBoundary', {
                 type: 'geojson',
@@ -1240,6 +1281,110 @@ function handleProvincialToggle(province, isChecked) {
         stopAffectedAreaPulse(province);
         removeLayerFromMap(layerKey);
     }
+}
+
+// Handle crop-specific affected districts blinking toggle
+function handleCropHighlightToggle(cropName, isChecked) {
+    const layerKey = 'crop-highlight_' + normalizeLayerKey(cropName);
+    const sourceId = layerKey + '_source';
+    const layerId = layerKey + '_layer';
+
+    const checkboxEl = document.getElementById('crop-' + cropName.toLowerCase() + '-highlight');
+    if (checkboxEl) {
+        checkboxEl.checked = isChecked;
+    }
+
+    if (!isChecked) {
+        stopAffectedAreaPulseByLayerId(layerId);
+        removeLayerFromMap(layerKey);
+        return;
+    }
+
+    if (map.getSource(sourceId)) {
+        if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, 'visibility', 'visible');
+            ensureAffectedAreaLayerOrder(layerId);
+        }
+        loadedLayers[layerKey] = { sourceId, layerId };
+        affectedAreaPulseState.layerIds.add(layerId);
+        ensureAffectedAreaPulseAnimation();
+        return;
+    }
+
+    const url = layerUrls['Crop Highlights'][cropName];
+    if (!url) {
+        console.error('No Crop Highlight URL found for:', cropName);
+        return;
+    }
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (!map) return;
+
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: data
+                });
+            }
+
+            if (!map.getLayer(layerId)) {
+                map.addLayer({
+                    id: layerId,
+                    type: 'fill',
+                    source: sourceId,
+                    paint: {
+                        'fill-color': [
+                            'match',
+                            ['get', 'Stress'],
+                            'Very High', '#ff0000',
+                            'High', '#ffa500',
+                            'rgba(0,0,0,0)'
+                        ],
+                        'fill-opacity': AFFECTED_AREA_MAX_OPACITY,
+                        'fill-outline-color': [
+                            'match',
+                            ['get', 'Stress'],
+                            'Very High', '#ff0000',
+                            'High', '#ffa500',
+                            'rgba(0,0,0,0)'
+                        ]
+                    },
+                    layout: {
+                        visibility: 'visible'
+                    },
+                    filter: ['in', ['get', 'Stress'], ['literal', ['Very High', 'High']]]
+                });
+            }
+
+            ensureAffectedAreaLayerOrder(layerId);
+
+            const boundaryLayers = [
+                'DistrictBoundary',
+                'districtBoundary',
+                'districtBoundary_label',
+                'DistrictBoundaryHighlight',
+                'TehsilBoundaryLine',
+                'TehsilBoundary',
+                'TehsilBoundaryHighlight',
+                'tehsilBoundary_label'
+            ];
+
+            boundaryLayers.forEach(boundaryLayerId => {
+                if (map.getLayer(boundaryLayerId)) {
+                    map.moveLayer(boundaryLayerId);
+                }
+            });
+
+            loadedLayers[layerKey] = { sourceId, layerId };
+
+            affectedAreaPulseState.layerIds.add(layerId);
+            ensureAffectedAreaPulseAnimation();
+        })
+        .catch(error => {
+            console.error('Error loading crop highlight:', cropName, error);
+        });
 }
 
 // Toggle vegetation layers (all at once)
@@ -3027,8 +3172,8 @@ class BasemapControl {
             // Re-add all previously loaded layers
             Object.keys(currentLayers).forEach(key => {
                 const layerInfo = currentLayers[key];
-                const layerName = key.replace(/^(veg_|crop_|flood_|crop-stress_|cropping-zones_|provincial_|precip_)/, '');
-                const normalizedKey = key.replace(/^(veg_|crop_|flood_|crop-stress_|cropping-zones_|provincial_|precip_)/, '');
+                const layerName = key.replace(/^(veg_|crop_|flood_|crop-stress_|cropping-zones_|provincial_|precip_|crop-highlight_)/, '');
+                const normalizedKey = key.replace(/^(veg_|crop_|flood_|crop-stress_|cropping-zones_|provincial_|precip_|crop-highlight_)/, '');
 
                 // Determine layer type from key prefix
                 if (key.startsWith('veg_')) {
@@ -3071,6 +3216,12 @@ class BasemapControl {
                     const matchedName = provincialNames.find(name => normalizeLayerKey(name) === normalized);
                     if (matchedName) {
                         addAffectedAreaLayer(matchedName, layerInfo.visible);
+                    }
+                } else if (key.startsWith('crop-highlight_')) {
+                    const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
+                    const matchedName = crops.find(name => normalizeLayerKey(name) === normalizedKey);
+                    if (matchedName) {
+                        handleCropHighlightToggle(matchedName, layerInfo.visible);
                     }
                 } else if (key.startsWith('precip_')) {
                     const precipitationNames = Object.keys(layerUrls['Precipitation'] || {});
@@ -3459,6 +3610,7 @@ const cropData = {
         chartDataB: {
             actual: [26.2, 28.16, 31.43, 28.42, 29.31, 28.3, 27.5, 28.4, 27.5],
             potential: [30.0, 32.0, 34.0, 32.08, 32.5, 32.8, 33.0, 33.5, 33.0],
+            irrigation25: [null, null, null, null, 29.31, 27.2, 26.0, 26.3, 25.4],
             gridMin: 24,
             gridMax: 36,
             gridLabels: [24, 28, 32, 36],
@@ -3509,6 +3661,7 @@ const cropData = {
         chartDataB: {
             actual: [9.32, 7.32, 9.86, 9.5, 9.99, 9.4, 9.15, 9.35, 9.05],
             potential: [11.5, 12.0, 12.5, 13.5, 13.0, 13.5, 14.0, 13.75, 14.0],
+            irrigation25: [null, null, null, null, 9.99, 8.5, 8.3, 8.1, 8.0],
             gridMin: 6,
             gridMax: 15,
             gridLabels: [6, 9, 12, 15],
@@ -3559,6 +3712,7 @@ const cropData = {
         chartDataB: {
             actual: [8.33, 4.19, 9.19, 7.08, 7.05, 6.83, 6.65, 7.4, 7.15],
             potential: [10.56, 10.3, 11.0, 11.5, 10.5, 10.52, 10.82, 11.05, 11.3],
+            irrigation25: [null, null, null, null, 7.05, 6.0, 5.9, 6.2, 5.95],
             gridMin: 2,
             gridMax: 14,
             gridLabels: [2, 6, 10, 14],
@@ -3609,6 +3763,7 @@ const cropData = {
         chartDataB: {
             actual: [9.52, 5.56, 9.35, 9.3, 8.79, 8.45, 8.03, 8.35, 8.09],
             potential: [10.83, 10.5, 11.32, 11.7, 11.3, 11.6, 12.0, 12.4, 12.8],
+            irrigation25: [null, null, null, null, 8.79, 7.5, 7.0, 7.2, 6.9],
             gridMin: 4,
             gridMax: 13,
             gridLabels: [4, 7, 10, 13],
@@ -3659,6 +3814,7 @@ const cropData = {
         chartDataB: {
             actual: [88.65, 87.64, 86.4, 83.5, 84.5, 84.03, 83.85, 85.2, 85.0],
             potential: [89.75, 89.14, 88.04, 86.04, 88.3, 87.6, 88.1, 89.0, 89.5],
+            irrigation25: [null, null, null, null, 84.5, 82.5, 82.0, 82.3, 82.5],
             gridMin: 80,
             gridMax: 92,
             gridLabels: [80, 84, 88, 92],
@@ -3669,7 +3825,6 @@ const cropData = {
                 { year: "2024–25", prod: 83.5, potential: 86.04, loss: 2.54, lossPercent: "3.0%", event: "Shifting of land to rice due to Lower economic returns", severity: "low" },
                 { year: "2025–26", prod: 84.5, potential: 88.3, loss: 3.8, lossPercent: "4.3%", event: "Strong winds and late river surges", severity: "low" },
                 { year: "2026–27", prod: 84.03, potential: 87.6, loss: 3.57, lossPercent: "4.1%", event: "Canal lining renovations causing temporary dry periods", severity: "low" },
-                { year: "2027–28", prod: 83.85, potential: 88.1, loss: 4.25, lossPercent: "4.8%", event: "Mild lodging due to high winds during monsoons", severity: "low" },
                 { year: "2028–29", prod: 85.2, potential: 89.0, loss: 3.8, lossPercent: "4.3%", event: "Favorable rainfall and timely fertilizer distribution", severity: "low" },
                 { year: "2029–30", prod: 85.0, potential: 89.5, loss: 4.5, lossPercent: "5.0%", event: "Crushing delays due to market price disputes", severity: "moderate" }
             ]
@@ -3677,10 +3832,179 @@ const cropData = {
     }
 };
 
+// --- Water Loss Excel Data Handler ---
+let waterLossExcelData = {
+    Rice: {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [9.17, 9.5, 10.0, 10.3, 10.8, 11.3],
+        withWaterLoss: [8.1613, 7.9779, 7.8862, 7.7028, 7.7028, 7.6111]
+    },
+    Cotton: {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [9.64, 9.98, 10.28, 10.78, 11.28, 11.58],
+        withWaterLoss: [8.676, 8.4832, 8.3868, 8.194, 8.0976, 8.0012]
+    },
+    Maize: {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [9.77, 10.02, 10.37, 10.65, 10.96, 11.33],
+        withWaterLoss: [8.9884, 8.8907, 8.793, 8.5976, 8.4999, 8.4022]
+    },
+    Sugarcane: {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [80.3, 80.48, 80.67, 80.82, 81.03, 81.18],
+        withWaterLoss: [73.073, 72.27, 71.467, 70.664, 69.861, 69.058]
+    },
+    Wheat: {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [32.5, 32.8, 33.15, 33.47, 33.86, 34.28],
+        withWaterLoss: [29.575, 28.925, 28.275, 27.95, 27.4625, 26.975]
+    }
+};
+
+let currentActiveOverlayCrop = 'Wheat';
+let isWaterLossExcelLoading = false;
+
+function ensureXlsxLoadedForMap() {
+    if (window.XLSX) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector('script[data-xlsx="true"]');
+        if (existing) {
+            existing.addEventListener('load', () => resolve());
+            existing.addEventListener('error', () => reject(new Error('Failed to load XLSX library')));
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        script.async = true;
+        script.dataset.xlsx = 'true';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load XLSX library'));
+        document.head.appendChild(script);
+    });
+}
+
+async function loadWaterLossExcelData() {
+    if (isWaterLossExcelLoading) return;
+    isWaterLossExcelLoading = true;
+
+    try {
+        await ensureXlsxLoadedForMap();
+        
+        let res = await fetch(encodeURI('./Data/crop Water Req.xlsx'));
+        if (!res.ok) {
+            res = await fetch('./Data/Crop_Water_Requirement.xlsx');
+        }
+        if (!res.ok) return;
+
+        const arrayBuffer = await res.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+
+        const sheetName = workbook.SheetNames.find(s => s.trim().toLowerCase() === 'water loss') || workbook.SheetNames[1];
+        if (!sheetName) return;
+
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        if (!json || json.length < 2) return;
+
+        let yearRow = json[0];
+        let years = [];
+        let colStart = -1;
+        for (let c = 0; c < yearRow.length; c++) {
+            const val = yearRow[c];
+            if (val !== null && val !== undefined && !isNaN(parseFloat(val)) && String(val).trim().length >= 4) {
+                if (colStart === -1) colStart = c;
+                years.push(String(val).trim());
+            }
+        }
+
+        if (years.length === 0 || colStart === -1) return;
+
+        const parsedCrops = {};
+        let currentCrop = null;
+
+        for (let r = 0; r < json.length; r++) {
+            const row = json[r];
+            if (!row || row.length === 0) continue;
+
+            const colA = row[0] ? String(row[0]).trim() : '';
+            const colB = row[1] ? String(row[1]).trim() : '';
+
+            if (colA) {
+                currentCrop = colA;
+            }
+
+            if (currentCrop && colB) {
+                const cropKey = currentCrop;
+                if (!parsedCrops[cropKey]) {
+                    parsedCrops[cropKey] = {
+                        years: years,
+                        target: [],
+                        withWaterLoss: []
+                    };
+                }
+
+                const vals = [];
+                for (let c = colStart; c < colStart + years.length; c++) {
+                    const v = parseFloat(row[c]);
+                    vals.push(!isNaN(v) ? v : 0);
+                }
+
+                if (colB.toLowerCase().includes('target')) {
+                    parsedCrops[cropKey].target = vals;
+                } else if (colB.toLowerCase().includes('water loss')) {
+                    parsedCrops[cropKey].withWaterLoss = vals;
+                }
+            }
+        }
+
+        let updatedAny = false;
+        for (const key in parsedCrops) {
+            if (parsedCrops[key].target.length > 0 && parsedCrops[key].withWaterLoss.length > 0) {
+                waterLossExcelData[key] = parsedCrops[key];
+                updatedAny = true;
+            }
+        }
+
+        if (updatedAny && wheatImpactState.visible && currentActiveOverlayCrop) {
+            showWheatImpactOverlay(currentActiveOverlayCrop);
+        }
+    } catch (err) {
+        console.warn('Failed to load/parse Water Loss from Excel file:', err);
+    } finally {
+        isWaterLossExcelLoading = false;
+    }
+}
+
+function getCropGridBounds(cropName, targetVals, waterLossVals) {
+    const allVals = [...targetVals, ...waterLossVals].filter(v => typeof v === 'number' && !isNaN(v));
+    if (allVals.length === 0) return { minG: 0, maxG: 10, labels: [0, 5, 10] };
+
+    const minVal = Math.min(...allVals);
+    const maxVal = Math.max(...allVals);
+
+    let step;
+    if (maxVal > 50) step = 5;
+    else if (maxVal > 20) step = 4;
+    else step = 2;
+
+    let minG = Math.floor((minVal - 1) / step) * step;
+    if (minG < 0) minG = 0;
+    let maxG = Math.ceil((maxVal + 1) / step) * step;
+
+    const labels = [];
+    for (let v = minG; v <= maxG; v += step) {
+        labels.push(v);
+    }
+    return { minG, maxG, labels };
+}
+
 function showWheatImpactOverlay(cropName = 'Wheat') {
     if (!document) return;
     const mapContainer = document.getElementById('map');
     if (!mapContainer) return;
+
+    currentActiveOverlayCrop = cropName;
+    loadWaterLossExcelData();
 
     const crop = cropData[cropName] || cropData['Wheat'];
 
@@ -3883,28 +4207,55 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
               stroke-width:2.5;
               stroke-linecap:round;
               stroke-linejoin:round;
-              stroke-dasharray:1000;
-              stroke-dashoffset:1000;
-              animation: wheatDrawLine 1.6s ease forwards;
+              clip-path: inset(0 100% 0 0);
+              animation: snakeLineReveal 5.0s cubic-bezier(0.4, 0, 0.2, 1) forwards;
             }
-            .wheat-line-actual { stroke: var(--aurora-1); animation-delay:.25s; }
-            .wheat-line-potential { stroke: var(--aurora-2); stroke-dasharray: 6 5; animation-delay:.05s; }
-            @keyframes wheatDrawLine { to { stroke-dashoffset:0; } }
+            .wheat-line-actual { stroke: var(--aurora-1); animation-delay: 0.15s; }
+            .wheat-line-potential { stroke: var(--aurora-2); stroke-dasharray: 6 5; animation-delay: 0.05s; }
 
-            .wheat-gap-fill { fill: var(--severe); opacity:0; animation: wheatFadeIn 1s ease forwards; animation-delay:1.5s; }
-            @keyframes wheatFadeIn { to { opacity:.16; } }
+            @keyframes snakeLineReveal {
+              0%   { clip-path: inset(0 100% 0 0); }
+              100% { clip-path: inset(0 0% 0 0); }
+            }
 
-            .wheat-point { opacity:0; transform-box: fill-box; transform-origin:center; animation: wheatPopIn .4s ease forwards; transition: r 0.2s ease, filter 0.2s ease; }
-            .wheat-point:hover { r: 6; filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.8)); cursor: pointer; }
-            @keyframes wheatPopIn { from { opacity:0; transform: scale(0); } to { opacity:1; transform: scale(1); } }
-            .wheat-point-actual { fill: var(--aurora-1); }
-            .wheat-point-potential { fill: var(--aurora-2); }
+            .wheat-gap-fill {
+              fill: var(--severe);
+              opacity: 0;
+              clip-path: inset(0 100% 0 0);
+              animation: snakeGapReveal 5.0s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+              animation-delay: 0.2s;
+            }
+            @keyframes snakeGapReveal {
+              0%   { clip-path: inset(0 100% 0 0); opacity: 0; }
+              100% { clip-path: inset(0 0% 0 0); opacity: 0.18; }
+            }
+
+            .wheat-point {
+              opacity: 0;
+              transform-box: fill-box;
+              transform-origin: center;
+              animation: snakePointPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+              transition: r 0.2s ease, filter 0.2s ease;
+            }
+            .wheat-point:hover { r: 6; filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.9)); cursor: pointer; }
+            @keyframes snakePointPop {
+              0%   { opacity:0; transform: scale(0); filter: drop-shadow(0 0 0px transparent); }
+              70%  { opacity:1; transform: scale(1.4); filter: drop-shadow(0 0 8px #00C9A7); }
+              100% { opacity:1; transform: scale(1); filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5)); }
+            }
+            .point-actual { fill: var(--aurora-1); }
+            .point-potential { fill: var(--aurora-2); }
 
             .wheat-grid-line { stroke: rgba(255,255,255,.06); stroke-width:1; opacity: 0; animation: wheatFadeInGrid 0.8s ease forwards; }
             @keyframes wheatFadeInGrid { to { opacity: 1; } }
             
             .wheat-axis-label, .wheat-axis-title { opacity: 0; animation: wheatFadeInLabels 0.8s ease forwards; animation-delay: 0.4s; }
             @keyframes wheatFadeInLabels { to { opacity: 1; } }
+
+            @keyframes fsBadgeFadeIn {
+                0% { opacity: 0; transform: translateY(3px); }
+                100% { opacity: 1; transform: translateY(0); }
+            }
 
             .wheat-legend-row { display:flex; gap:14px; justify-content:center; margin-top:4px; font-size:16px; color: #ffffff; }
             .wheat-legend-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px; vertical-align:middle; }
@@ -3926,7 +4277,7 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
               transition: opacity 0.25s ease, transform 0.15s ease, left 0.1s ease, top 0.1s ease;
               box-shadow: 0 10px 28px rgba(0,0,0,0.6);
               z-index: 10;
-              width: 220px;
+              width: 270px;
               backdrop-filter: blur(8px);
               -webkit-backdrop-filter: blur(8px);
             }
@@ -3952,14 +4303,18 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
             .wheat-tooltip-val {
               font-weight: 700;
             }
-            .wheat-tooltip-event {
-              font-size: 12px;
-              font-style: italic;
-              color: #ffb86b;
-              margin-top: 6px;
-              border-top: 1px dashed rgba(255, 255, 255, 0.15);
-              padding-top: 6px;
-              line-height: 1.3;
+
+            @keyframes tooltipLossZoomPulse {
+              0%   { transform: scale(1); filter: drop-shadow(0 0 0px transparent); }
+              50%  { transform: scale(1.22); filter: drop-shadow(0 0 10px #f43f5e); color: #ff2a55; }
+              100% { transform: scale(1); filter: drop-shadow(0 0 0px transparent); }
+            }
+
+            .tooltip-loss-zoom {
+              display: inline-block;
+              font-weight: 800;
+              animation: tooltipLossZoomPulse 1.0s ease-in-out infinite;
+              transform-origin: center center;
             }
             
             /* Tracker components styles */
@@ -4004,7 +4359,7 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
         return 'severe';
     };
 
-    // Build Table Rows dynamically
+    // Build Table Rows dynamically for Card A
     const tableRowsHTML = crop.tableRows.map((row, idx) => {
         const delay = (idx * 0.09).toFixed(2);
 
@@ -4029,48 +4384,131 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
         `;
     }).join('\n');
 
-    // Build Chart Paths & coordinates dynamically for Card B (9 years: 2021-22 to 2029-30)
-    const xCoords = [60, 96.25, 132.5, 168.75, 205, 241.25, 277.5, 313.75, 350];
-    const gridMin = crop.chartDataB.gridMin;
-    const gridMax = crop.chartDataB.gridMax;
-    const gridLabels = crop.chartDataB.gridLabels;
-    const range = gridMax - gridMin;
-    
-    const actualY = crop.chartDataB.actual.map(v => 130 - ((v - gridMin) / range) * 120);
-    const potentialY = crop.chartDataB.potential.map(v => 130 - ((v - gridMin) / range) * 120);
+    // Fetch Card B Water Loss data directly from Excel dataset
+    const cropKey = Object.keys(waterLossExcelData).find(k => k.toLowerCase() === cropName.toLowerCase()) || cropName;
+    const lossData = waterLossExcelData[cropKey] || {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [0, 0, 0, 0, 0, 0],
+        withWaterLoss: [0, 0, 0, 0, 0, 0]
+    };
 
-    const actualPathD = 'M' + xCoords.map((x, i) => `${x},${actualY[i]}`).join(' L');
-    const potentialPathD = 'M' + xCoords.map((x, i) => `${x},${potentialY[i]}`).join(' L');
-    
-    const actualPoints = xCoords.map((x, i) => `${x},${actualY[i]}`).join(' L');
-    const potentialPoints = xCoords.slice().reverse().map((x, i) => {
-        const revIdx = xCoords.length - 1 - i;
-        return `${x},${potentialY[revIdx]}`;
-    }).join(' L');
-    const gapFillD = `M${actualPoints} L${potentialPoints} Z`;
+    const years = lossData.years;
+    const targetVals = lossData.target;
+    const waterLossVals = lossData.withWaterLoss;
 
-    const gridLabelsHTML = gridLabels.map((lbl, idx) => {
-        const yVal = 133 - idx * 40;
-        return `<text class="wheat-axis-label wheat-axis-label-y" x="50" y="${yVal}">${lbl}</text>`;
+    let prodUnit = 'M tons';
+    if (cropName.toLowerCase() === 'cotton') prodUnit = 'M Bales';
+    else if (cropName.toLowerCase() === 'wheat') prodUnit = 'M t';
+    else if (crop && crop.prodUnit) prodUnit = crop.prodUnit;
+
+    const bounds = getCropGridBounds(cropName, targetVals, waterLossVals);
+    const minG = bounds.minG;
+    const maxG = bounds.maxG;
+    const gridLabels = bounds.labels;
+    const range = maxG - minG || 1;
+
+    const xCoords = [];
+    const startX = 60;
+    const endX = 350;
+    const stepX = (endX - startX) / Math.max(1, years.length - 1);
+    for (let i = 0; i < years.length; i++) {
+        xCoords.push(startX + i * stepX);
+    }
+
+    const targetY = targetVals.map(v => 130 - ((v - minG) / range) * 120);
+    const waterLossY = waterLossVals.map(v => 130 - ((v - minG) / range) * 120);
+
+    // Smooth Snake Curve path generator
+    function createSmoothPath(xVals, yVals) {
+        if (xVals.length === 0) return '';
+        if (xVals.length === 1) return `M ${xVals[0]},${yVals[0]}`;
+        let path = `M ${xVals[0]},${yVals[0]}`;
+        for (let i = 0; i < xVals.length - 1; i++) {
+            const x0 = xVals[i];
+            const y0 = yVals[i];
+            const x1 = xVals[i + 1];
+            const y1 = yVals[i + 1];
+            const cp1x = x0 + (x1 - x0) / 2;
+            const cp1y = y0;
+            const cp2x = x0 + (x1 - x0) / 2;
+            const cp2y = y1;
+            path += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x1},${y1}`;
+        }
+        return path;
+    }
+
+    function createSmoothGapFill(xVals, tY, wY) {
+        if (xVals.length < 2) return '';
+        const topPath = createSmoothPath(xVals, tY);
+        const revX = xVals.slice().reverse();
+        const revY = wY.slice().reverse();
+        let botPath = `L ${revX[0]},${revY[0]}`;
+        for (let i = 0; i < revX.length - 1; i++) {
+            const x0 = revX[i];
+            const y0 = revY[i];
+            const x1 = revX[i + 1];
+            const y1 = revY[i + 1];
+            const cp1x = x0 + (x1 - x0) / 2;
+            const cp1y = y0;
+            const cp2x = x0 + (x1 - x0) / 2;
+            const cp2y = y1;
+            botPath += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x1},${y1}`;
+        }
+        return `${topPath} ${botPath} Z`;
+    }
+
+    const targetPathD = createSmoothPath(xCoords, targetY);
+    const waterLossPathD = createSmoothPath(xCoords, waterLossY);
+    const gapFillD = createSmoothGapFill(xCoords, targetY, waterLossY);
+
+    const gridLabelsHTML = gridLabels.map(lbl => {
+        const yVal = 130 - ((lbl - minG) / range) * 120;
+        return `
+            <line class="wheat-grid-line" x1="60" y1="${yVal}" x2="350" y2="${yVal}"/>
+            <text class="wheat-axis-label wheat-axis-label-y" x="50" y="${yVal + 4}">${lbl}</text>
+        `;
     }).join('\n');
 
-    const actualCircles = actualY.map((y, idx) => {
-        const val = crop.chartDataB.actual[idx];
-        const delay = (1.3 + idx * 0.1).toFixed(2);
-        const year = crop.chartDataB.tableRows[idx].year;
-        return `<circle class="wheat-point point-actual" cx="${xCoords[idx]}" cy="${y}" r="3.2" style="animation-delay:${delay}s"><title>${year} Actual: ${val} ${crop.prodUnit}</title></circle>`;
+    const targetCircles = targetY.map((y, idx) => {
+        const val = targetVals[idx];
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const yr = years[idx];
+        return `<circle class="wheat-point point-potential" cx="${xCoords[idx]}" cy="${y}" r="3.2" style="animation-delay:${delay}s"><title>${yr} Target: ${val} ${prodUnit}</title></circle>`;
     }).join('\n');
 
-    const potentialCircles = potentialY.map((y, idx) => {
-        const val = crop.chartDataB.potential[idx];
-        const delay = (1.3 + idx * 0.1).toFixed(2);
-        const year = crop.chartDataB.tableRows[idx].year;
-        return `<circle class="wheat-point point-potential" cx="${xCoords[idx]}" cy="${y}" r="2.6" style="animation-delay:${delay}s"><title>${year} Potential: ${val} ${crop.prodUnit}</title></circle>`;
+    const waterLossCircles = waterLossY.map((y, idx) => {
+        const val = waterLossVals[idx];
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const yr = years[idx];
+        return `<circle class="wheat-point point-actual" cx="${xCoords[idx]}" cy="${y}" r="3.2" style="animation-delay:${delay}s"><title>${yr} With Water Loss: ${val} ${prodUnit}</title></circle>`;
     }).join('\n');
 
-    const xLabelsHTML = crop.chartDataB.tableRows.map((row, idx) => {
-        const displayYear = row.year.replace('20', '').replace('20', '');
-        return `<text class="wheat-axis-label wheat-axis-label-x" x="${xCoords[idx]}" y="152">${displayYear}</text>`;
+    const targetBadges = targetY.map((y, idx) => {
+        const val = targetVals[idx].toFixed(1);
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const cx = xCoords[idx];
+        return `
+          <g style="opacity: 0; animation: fsBadgeFadeIn 0.6s ease-out forwards; animation-delay: ${delay}s;">
+            <rect x="${cx - 19}" y="${y - 17}" width="38" height="13" rx="3" fill="rgba(11, 16, 38, 0.85)" stroke="var(--aurora-2)" stroke-width="1"/>
+            <text x="${cx}" y="${y - 7}" text-anchor="middle" fill="var(--aurora-2)" font-size="9" font-weight="700">${val}</text>
+          </g>
+        `;
+    }).join('\n');
+
+    const waterLossBadges = waterLossY.map((y, idx) => {
+        const val = waterLossVals[idx].toFixed(1);
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const cx = xCoords[idx];
+        return `
+          <g style="opacity: 0; animation: fsBadgeFadeIn 0.6s ease-out forwards; animation-delay: ${delay}s;">
+            <rect x="${cx - 19}" y="${y + 6}" width="38" height="13" rx="3" fill="rgba(11, 16, 38, 0.85)" stroke="var(--aurora-1)" stroke-width="1"/>
+            <text x="${cx}" y="${y + 16}" text-anchor="middle" fill="var(--aurora-1)" font-size="9" font-weight="700">${val}</text>
+          </g>
+        `;
+    }).join('\n');
+
+    const xLabelsHTML = years.map((yr, idx) => {
+        return `<text class="wheat-axis-label wheat-axis-label-x" x="${xCoords[idx]}" y="146">${yr}</text>`;
     }).join('\n');
 
     container.innerHTML = `
@@ -4081,6 +4519,11 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
               <div class="wheat-header-text">
                 <h3>${crop.title}</h3>
               </div>
+              <button class="wheat-fullscreen-btn" onclick="openCropCardModal('${cropName}', 'cardA', event)" title="Maximize Modal View" style="position: absolute; right: 38px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.18); border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s ease, transform 0.2s ease;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#3a1226" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 13px; height: 13px;">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+              </button>
               <svg class="wheat-toggle-icon" viewBox="0 0 24 24" fill="none" style="width: 18px; height: 18px; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); transition: transform 0.35s ease;">
                 <path d="M6 9l6 6 6-6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="#3a1226"/>
               </svg>
@@ -4104,33 +4547,37 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
             </div>
           </div>
 
-          <!-- CARD B — Yield trend chart (pure SVG) -->
+          <!-- CARD B — Production Loss due to Water Shortage -->
           <div class="wheat-card wheat-cardB" id="wheat-cardB" style="position:relative;">
             <div class="wheat-card-header" onclick="toggleWheatCard('wheat-cardB')">
               <div class="wheat-header-text">
-                <h3>${crop.chartTitle}</h3>
+                <h3>${cropName} Production Loss due to Water Shortage.</h3>
               </div>
+              <button class="wheat-fullscreen-btn" onclick="openCropCardModal('${cropName}', 'cardB', event)" title="Maximize Modal View" style="position: absolute; right: 38px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.18); border: none; border-radius: 4px; width: 22px; height: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s ease, transform 0.2s ease;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#062330" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width: 13px; height: 13px;">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+              </button>
               <svg class="wheat-toggle-icon" viewBox="0 0 24 24" fill="none" style="width: 18px; height: 18px; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); transition: transform 0.35s ease;">
                 <path d="M6 9l6 6 6-6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" stroke="#062330"/>
               </svg>
             </div>
-            <div class="wheat-card-body" style="position:relative;">
-              <svg class="wheat-chart-svg" viewBox="0 0 380 195" xmlns="http://www.w3.org/2000/svg">
-                <line class="wheat-grid-line" x1="60" y1="130" x2="350" y2="130"/>
-                <line class="wheat-grid-line" x1="60" y1="90"  x2="350" y2="90"/>
-                <line class="wheat-grid-line" x1="60" y1="50"  x2="350" y2="50"/>
-                <line class="wheat-grid-line" x1="60" y1="10"  x2="350" y2="10"/>
+            <div class="wheat-card-body" style="position:relative; padding: 10px 14px 6px 14px;">
+              <svg class="wheat-chart-svg" viewBox="0 0 380 172" xmlns="http://www.w3.org/2000/svg">
                 ${gridLabelsHTML}
 
-                <text class="wheat-axis-title" x="20" y="70" transform="rotate(-90 20 70)">${crop.chartYTitle}</text>
+                <text class="wheat-axis-title" x="20" y="70" transform="rotate(-90 20 70)">${cropName} (${prodUnit})</text>
 
                 <path class="wheat-gap-fill" d="${gapFillD}"/>
 
-                <path class="wheat-line-potential" d="${potentialPathD}"/>
-                <path class="wheat-line-actual" d="${actualPathD}"/>
+                <path class="wheat-line-potential" d="${targetPathD}"/>
+                <path class="wheat-line-actual" d="${waterLossPathD}"/>
 
-                ${actualCircles}
-                ${potentialCircles}
+                ${targetCircles}
+                ${waterLossCircles}
+
+                ${targetBadges}
+                ${waterLossBadges}
 
                 <!-- Interactive Tracker components -->
                 <line id="wheat-tracker-line" class="wheat-tracker-line" x1="0" y1="10" x2="0" y2="130" style="display:none;" />
@@ -4139,15 +4586,15 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
 
                 ${xLabelsHTML}
 
-                <text class="wheat-axis-title" x="205" y="178">Crop Year</text>
+                <text class="wheat-axis-title" x="205" y="166">Year</text>
               </svg>
 
               <!-- Chart Tooltip -->
               <div id="wheat-chart-tooltip" class="wheat-chart-tooltip" style="opacity:0; pointer-events:none;"></div>
 
-              <div class="wheat-legend-row">
-                <span><span class="wheat-legend-dot wheat-dot-actual"></span>${crop.legendActual}</span>
-                <span><span class="wheat-legend-dot wheat-dot-potential"></span>${crop.legendPotential}</span>
+              <div class="wheat-legend-row" style="margin-top: 2px; margin-bottom: 2px;">
+                <span><span class="wheat-legend-dot wheat-dot-potential"></span>Target Production</span>
+                <span><span class="wheat-legend-dot wheat-dot-actual"></span>With Water Shortage</span>
               </div>
             </div>
           </div>
@@ -4177,10 +4624,10 @@ function showWheatImpactOverlay(cropName = 'Wheat') {
     updateWheatImpactOverlayPosition();
 
     // Initialize Chart interactivity
-    initWheatChartInteractivity(crop);
+    initWheatChartInteractivity(cropName, crop);
 }
 
-function initWheatChartInteractivity(crop) {
+function initWheatChartInteractivity(cropName, crop) {
     const cardB = document.getElementById('wheat-cardB');
     if (!cardB) return;
 
@@ -4192,20 +4639,43 @@ function initWheatChartInteractivity(crop) {
 
     if (!svg || !tooltip) return;
 
-    const xCoords = [60, 96.25, 132.5, 168.75, 205, 241.25, 277.5, 313.75, 350];
-    const gridMin = crop.chartDataB.gridMin;
-    const gridMax = crop.chartDataB.gridMax;
-    const range = gridMax - gridMin;
-    const actualY = crop.chartDataB.actual.map(v => 130 - ((v - gridMin) / range) * 120);
-    const potentialY = crop.chartDataB.potential.map(v => 130 - ((v - gridMin) / range) * 120);
+    const cropKey = Object.keys(waterLossExcelData).find(k => k.toLowerCase() === cropName.toLowerCase()) || cropName;
+    const lossData = waterLossExcelData[cropKey] || {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [0, 0, 0, 0, 0, 0],
+        withWaterLoss: [0, 0, 0, 0, 0, 0]
+    };
+
+    const years = lossData.years;
+    const targetVals = lossData.target;
+    const waterLossVals = lossData.withWaterLoss;
+
+    let prodUnit = 'M tons';
+    if (cropName.toLowerCase() === 'cotton') prodUnit = 'M Bales';
+    else if (cropName.toLowerCase() === 'wheat') prodUnit = 'M t';
+    else if (crop && crop.prodUnit) prodUnit = crop.prodUnit;
+
+    const bounds = getCropGridBounds(cropName, targetVals, waterLossVals);
+    const minG = bounds.minG;
+    const maxG = bounds.maxG;
+    const range = maxG - minG || 1;
+
+    const xCoords = [];
+    const startX = 60;
+    const endX = 350;
+    const stepX = (endX - startX) / Math.max(1, years.length - 1);
+    for (let i = 0; i < years.length; i++) {
+        xCoords.push(startX + i * stepX);
+    }
+
+    const targetY = targetVals.map(v => 130 - ((v - minG) / range) * 120);
+    const waterLossY = waterLossVals.map(v => 130 - ((v - minG) / range) * 120);
 
     svg.addEventListener('mousemove', (e) => {
         const rect = svg.getBoundingClientRect();
-        // Calculate mouse X/Y relative to the SVG viewBox (0 0 380 195)
         const mouseX = ((e.clientX - rect.left) / rect.width) * 380;
         const mouseY = ((e.clientY - rect.top) / rect.height) * 195;
 
-        // Find the closest coordinate index
         let closestIdx = 0;
         let minDist = Infinity;
         xCoords.forEach((cx, idx) => {
@@ -4216,60 +4686,52 @@ function initWheatChartInteractivity(crop) {
             }
         });
 
-        // If the mouse is close enough to the chart area
-        if (mouseX >= 40 && mouseX <= 370 && mouseY >= 0 && mouseY <= 150) {
+        if (mouseX >= 40 && mouseX <= 370 && mouseY >= 0 && mouseY <= 160) {
             const targetX = xCoords[closestIdx];
-            const targetActualY = actualY[closestIdx];
-            const targetPotentialY = potentialY[closestIdx];
-            const row = crop.chartDataB.tableRows[closestIdx];
+            const tY = targetY[closestIdx];
+            const wY = waterLossY[closestIdx];
+            const yr = years[closestIdx];
+            const tVal = targetVals[closestIdx];
+            const wVal = waterLossVals[closestIdx];
+            const loss = tVal - wVal;
+            const lossPct = tVal > 0 ? ((loss / tVal) * 100).toFixed(1) : '0';
 
-            // Position and show vertical line
             trackerLine.setAttribute('x1', targetX);
             trackerLine.setAttribute('x2', targetX);
             trackerLine.style.display = 'block';
 
-            // Position and show highlight circles
-            trackerActual.setAttribute('cx', targetX);
-            trackerActual.setAttribute('cy', targetActualY);
-            trackerActual.style.display = 'block';
-
             trackerPotential.setAttribute('cx', targetX);
-            trackerPotential.setAttribute('cy', targetPotentialY);
+            trackerPotential.setAttribute('cy', tY);
             trackerPotential.style.display = 'block';
 
-            // Update tooltip content
-            const lossVal = `${row.loss.toFixed(2)} ${crop.prodUnit} (${row.lossPercent})`;
-            const eventText = row.event;
-            const actualVal = row.prod.toFixed(2);
-            const potentialVal = row.potential.toFixed(2);
+            trackerActual.setAttribute('cx', targetX);
+            trackerActual.setAttribute('cy', wY);
+            trackerActual.style.display = 'block';
 
             tooltip.innerHTML = `
-                <div class="wheat-tooltip-year">${row.year}</div>
+                <div class="wheat-tooltip-year">${yr} - ${cropName} Water Shortage</div>
                 <div class="wheat-tooltip-row">
-                    <span class="wheat-tooltip-label">Actual:</span>
-                    <span class="wheat-tooltip-val" style="color:var(--aurora-1);">${actualVal} ${crop.prodUnit}</span>
+                    <span class="wheat-tooltip-label">Target Production:</span>
+                    <span class="wheat-tooltip-val" style="color:var(--aurora-2);">${tVal.toFixed(2)} ${prodUnit}</span>
                 </div>
                 <div class="wheat-tooltip-row">
-                    <span class="wheat-tooltip-label">Potential:</span>
-                    <span class="wheat-tooltip-val" style="color:var(--aurora-2);">${potentialVal} ${crop.prodUnit}</span>
+                    <span class="wheat-tooltip-label">With Water Shortage:</span>
+                    <span class="wheat-tooltip-val" style="color:var(--aurora-1);">${wVal.toFixed(2)} ${prodUnit}</span>
                 </div>
-                <div class="wheat-tooltip-row">
-                    <span class="wheat-tooltip-label">Yield Loss:</span>
-                    <span class="wheat-tooltip-val" style="color:var(--severe);">${lossVal}</span>
+                <div class="wheat-tooltip-row" style="border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px;margin-top:4px;">
+                    <span class="wheat-tooltip-label">Production Shortfall:</span>
+                    <span class="wheat-tooltip-val" style="color:#f43f5e;">-${loss.toFixed(2)} ${prodUnit} <span class="tooltip-loss-zoom">(${lossPct}%)</span></span>
                 </div>
-                ${eventText ? `<div class="wheat-tooltip-event">${eventText}</div>` : ''}
             `;
 
-            // Position tooltip relative to card body bounds
             let tooltipX = ((targetX / 380) * rect.width);
-            let tooltipY = ((targetActualY / 195) * rect.height) - 40;
+            let tooltipY = ((wY / 195) * rect.height) - 40;
 
-            // Prevent tooltip from going outside card body bounds
-            const tooltipWidth = 220;
+            const tooltipWidth = 270;
             if (tooltipX + tooltipWidth + 20 > rect.width) {
-                tooltipX = tooltipX - tooltipWidth - 20; // show on left of guide line
+                tooltipX = tooltipX - tooltipWidth - 20;
             } else {
-                tooltipX = tooltipX + 20; // show on right of guide line
+                tooltipX = tooltipX + 20;
             }
 
             tooltip.style.left = `${tooltipX}px`;
@@ -4294,44 +4756,47 @@ function initWheatChartInteractivity(crop) {
     // Legend interactivity: hovering over a legend span highlights the line
     const legendRow = cardB.querySelector('.wheat-legend-row');
     if (legendRow) {
-        const actualSpan = legendRow.children[0];
-        const potentialSpan = legendRow.children[1];
+        const potentialSpan = legendRow.children[0];
+        const actualSpan = legendRow.children[1];
 
-        const actualLine = svg.querySelector('.wheat-line-actual');
-        const potentialLine = svg.querySelector('.wheat-line-potential');
-        const actualPoints = svg.querySelectorAll('.point-actual');
-        const potentialPoints = svg.querySelectorAll('.point-potential');
+        const targetLine = svg.querySelector('.wheat-line-potential');
+        const waterLossLine = svg.querySelector('.wheat-line-actual');
+        const targetPoints = svg.querySelectorAll('.point-potential');
+        const waterLossPoints = svg.querySelectorAll('.point-actual');
 
-        if (actualSpan && potentialSpan && actualLine && potentialLine) {
-            actualSpan.style.cursor = 'pointer';
+        const setHoverState = (hoveredSpan, activeLine, activePoints, inactiveLine, inactivePoints) => {
+            hoveredSpan.style.fontWeight = 'bold';
+            if (activeLine) activeLine.style.strokeWidth = '4';
+            if (inactiveLine) inactiveLine.style.opacity = '0.15';
+            if (inactivePoints) inactivePoints.forEach(p => p.style.opacity = '0.15');
+        };
+
+        const resetHoverState = (hoveredSpan, activeLine, activePoints, inactiveLine, inactivePoints) => {
+            hoveredSpan.style.fontWeight = 'normal';
+            if (activeLine) activeLine.style.strokeWidth = '2.5';
+            if (inactiveLine) inactiveLine.style.opacity = '1';
+            if (inactivePoints) inactivePoints.forEach(p => p.style.opacity = '1');
+        };
+
+        if (potentialSpan && targetLine) {
             potentialSpan.style.cursor = 'pointer';
-            actualSpan.style.transition = 'opacity 0.2s ease';
             potentialSpan.style.transition = 'opacity 0.2s ease';
-
-            actualSpan.addEventListener('mouseenter', () => {
-                potentialLine.style.opacity = '0.15';
-                potentialPoints.forEach(p => p.style.opacity = '0.15');
-                actualLine.style.strokeWidth = '4';
-                actualSpan.style.fontWeight = 'bold';
-            });
-            actualSpan.addEventListener('mouseleave', () => {
-                potentialLine.style.opacity = '1';
-                potentialPoints.forEach(p => p.style.opacity = '1');
-                actualLine.style.strokeWidth = '2.5';
-                actualSpan.style.fontWeight = 'normal';
-            });
-
             potentialSpan.addEventListener('mouseenter', () => {
-                actualLine.style.opacity = '0.15';
-                actualPoints.forEach(p => p.style.opacity = '0.15');
-                potentialLine.style.strokeWidth = '4';
-                potentialSpan.style.fontWeight = 'bold';
+                setHoverState(potentialSpan, targetLine, targetPoints, waterLossLine, waterLossPoints);
             });
             potentialSpan.addEventListener('mouseleave', () => {
-                actualLine.style.opacity = '1';
-                actualPoints.forEach(p => p.style.opacity = '1');
-                potentialLine.style.strokeWidth = '2.5';
-                potentialSpan.style.fontWeight = 'normal';
+                resetHoverState(potentialSpan, targetLine, targetPoints, waterLossLine, waterLossPoints);
+            });
+        }
+
+        if (actualSpan && waterLossLine) {
+            actualSpan.style.cursor = 'pointer';
+            actualSpan.style.transition = 'opacity 0.2s ease';
+            actualSpan.addEventListener('mouseenter', () => {
+                setHoverState(actualSpan, waterLossLine, waterLossPoints, targetLine, targetPoints);
+            });
+            actualSpan.addEventListener('mouseleave', () => {
+                resetHoverState(actualSpan, waterLossLine, waterLossPoints, targetLine, targetPoints);
             });
         }
     }
@@ -4343,6 +4808,394 @@ function hideWheatImpactOverlay() {
         container.style.display = 'none';
     }
     wheatImpactState.visible = false;
+}
+
+// --- Crop Card Modal Handler ---
+function openCropCardModal(cropName, cardType = 'cardB', event) {
+    if (event) event.stopPropagation();
+
+    let modal = document.getElementById('crop-card-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'crop-card-modal';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100vw';
+        modal.style.height = '100vh';
+        modal.style.zIndex = '999999';
+        modal.style.background = 'rgba(5, 8, 22, 0.92)';
+        modal.style.backdropFilter = 'blur(18px)';
+        modal.style.webkitBackdropFilter = 'blur(18px)';
+        modal.style.display = 'flex';
+        modal.style.alignItems = 'center';
+        modal.style.justifyContent = 'center';
+        modal.style.padding = '20px';
+        modal.style.opacity = '0';
+        modal.style.transition = 'opacity 0.3s ease';
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeCropCardModal();
+        });
+    }
+
+    const targetParent = document.fullscreenElement || 
+                         document.webkitFullscreenElement || 
+                         document.mozFullScreenElement || 
+                         document.msFullscreenElement ||
+                         document.getElementById('map') || 
+                         document.body;
+
+    if (!modal.parentElement || modal.parentElement !== targetParent) {
+        targetParent.appendChild(modal);
+    }
+
+    modal.style.zIndex = '99999999';
+
+    const crop = cropData[cropName] || cropData['Wheat'];
+    const cropKey = Object.keys(waterLossExcelData).find(k => k.toLowerCase() === cropName.toLowerCase()) || cropName;
+    const lossData = waterLossExcelData[cropKey] || {
+        years: ['2026', '2027', '2028', '2029', '2030', '2031'],
+        target: [0, 0, 0, 0, 0, 0],
+        withWaterLoss: [0, 0, 0, 0, 0, 0]
+    };
+
+    const years = lossData.years;
+    const targetVals = lossData.target;
+    const waterLossVals = lossData.withWaterLoss;
+
+    let prodUnit = 'M tons';
+    if (cropName.toLowerCase() === 'cotton') prodUnit = 'M Bales';
+    else if (cropName.toLowerCase() === 'wheat') prodUnit = 'M t';
+    else if (crop && crop.prodUnit) prodUnit = crop.prodUnit;
+
+    const bounds = getCropGridBounds(cropName, targetVals, waterLossVals);
+    const minG = bounds.minG;
+    const maxG = bounds.maxG;
+    const gridLabels = bounds.labels;
+    const range = maxG - minG || 1;
+
+    const xCoords = [];
+    const startX = 90;
+    const endX = 1130;
+    const stepX = (endX - startX) / Math.max(1, years.length - 1);
+    for (let i = 0; i < years.length; i++) {
+        xCoords.push(startX + i * stepX);
+    }
+
+    const targetY = targetVals.map(v => 420 - ((v - minG) / range) * 360);
+    const waterLossY = waterLossVals.map(v => 420 - ((v - minG) / range) * 360);
+
+    function createSmoothPath(xVals, yVals) {
+        if (xVals.length === 0) return '';
+        if (xVals.length === 1) return `M ${xVals[0]},${yVals[0]}`;
+        let path = `M ${xVals[0]},${yVals[0]}`;
+        for (let i = 0; i < xVals.length - 1; i++) {
+            const x0 = xVals[i];
+            const y0 = yVals[i];
+            const x1 = xVals[i + 1];
+            const y1 = yVals[i + 1];
+            const cp1x = x0 + (x1 - x0) / 2;
+            const cp1y = y0;
+            const cp2x = x0 + (x1 - x0) / 2;
+            const cp2y = y1;
+            path += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x1},${y1}`;
+        }
+        return path;
+    }
+
+    function createSmoothGapFill(xVals, tY, wY) {
+        if (xVals.length < 2) return '';
+        const topPath = createSmoothPath(xVals, tY);
+        const revX = xVals.slice().reverse();
+        const revY = wY.slice().reverse();
+        let botPath = `L ${revX[0]},${revY[0]}`;
+        for (let i = 0; i < revX.length - 1; i++) {
+            const x0 = revX[i];
+            const y0 = revY[i];
+            const x1 = revX[i + 1];
+            const y1 = revY[i + 1];
+            const cp1x = x0 + (x1 - x0) / 2;
+            const cp1y = y0;
+            const cp2x = x0 + (x1 - x0) / 2;
+            const cp2y = y1;
+            botPath += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${x1},${y1}`;
+        }
+        return `${topPath} ${botPath} Z`;
+    }
+
+    const targetPathD = createSmoothPath(xCoords, targetY);
+    const waterLossPathD = createSmoothPath(xCoords, waterLossY);
+    const gapFillD = createSmoothGapFill(xCoords, targetY, waterLossY);
+
+    const gridLabelsHTML = gridLabels.map(lbl => {
+        const yVal = 420 - ((lbl - minG) / range) * 360;
+        return `
+            <line class="wheat-grid-line" x1="90" y1="${yVal}" x2="1130" y2="${yVal}" style="stroke-width: 1.5px;"/>
+            <text class="wheat-axis-label wheat-axis-label-y" x="78" y="${yVal + 7}" style="font-size:24px; font-weight:700;">${lbl}</text>
+        `;
+    }).join('\n');
+
+    const targetCircles = targetY.map((y, idx) => {
+        const val = targetVals[idx];
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const yr = years[idx];
+        return `<circle class="wheat-point point-potential" cx="${xCoords[idx]}" cy="${y}" r="9" style="animation-delay:${delay}s"><title>${yr} Target: ${val} ${prodUnit}</title></circle>`;
+    }).join('\n');
+
+    const waterLossCircles = waterLossY.map((y, idx) => {
+        const val = waterLossVals[idx];
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const yr = years[idx];
+        return `<circle class="wheat-point point-actual" cx="${xCoords[idx]}" cy="${y}" r="9" style="animation-delay:${delay}s"><title>${yr} With Water Loss: ${val} ${prodUnit}</title></circle>`;
+    }).join('\n');
+
+    const targetBadges = targetY.map((y, idx) => {
+        const val = targetVals[idx].toFixed(2);
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const cx = xCoords[idx];
+        return `
+          <g style="opacity: 0; animation: fsBadgeFadeIn 0.6s ease-out forwards; animation-delay: ${delay}s;">
+            <rect x="${cx - 48}" y="${y - 35}" width="96" height="26" rx="6" fill="rgba(11, 16, 38, 0.88)" stroke="var(--aurora-2)" stroke-width="1.8"/>
+            <text x="${cx}" y="${y - 17}" text-anchor="middle" fill="var(--aurora-2)" font-size="16" font-weight="700">${val}</text>
+          </g>
+        `;
+    }).join('\n');
+
+    const waterLossBadges = waterLossY.map((y, idx) => {
+        const val = waterLossVals[idx].toFixed(2);
+        const delay = (0.20 + idx * 0.95).toFixed(2);
+        const cx = xCoords[idx];
+        return `
+          <g style="opacity: 0; animation: fsBadgeFadeIn 0.6s ease-out forwards; animation-delay: ${delay}s;">
+            <rect x="${cx - 48}" y="${y + 12}" width="96" height="26" rx="6" fill="rgba(11, 16, 38, 0.88)" stroke="var(--aurora-1)" stroke-width="1.8"/>
+            <text x="${cx}" y="${y + 30}" text-anchor="middle" fill="var(--aurora-1)" font-size="16" font-weight="700">${val}</text>
+          </g>
+        `;
+    }).join('\n');
+
+    const xLabelsHTML = years.map((yr, idx) => {
+        return `<text class="wheat-axis-label wheat-axis-label-x" x="${xCoords[idx]}" y="462" style="font-size:26px; font-weight:700;">${yr}</text>`;
+    }).join('\n');
+
+    let contentHTML = '';
+
+    if (cardType === 'cardA') {
+        const maxLoss = Math.max(...crop.tableRows.map(r => r.loss));
+        const getLossClass = (l) => {
+            const p = l / maxLoss;
+            if (p < .25) return 'low';
+            if (p < .5) return 'moderate';
+            if (p < .75) return 'elevated';
+            return 'severe';
+        };
+
+        const tableRowsHTML = crop.tableRows.map((row, idx) => {
+            const delay = (idx * 0.09).toFixed(2);
+            return `
+              <tr class="crop-data-row" style="animation-delay: ${delay}s;">
+                <td class="crop-td-year" style="font-size:24px; padding:20px 12px; font-weight:700;">${row.year}</td>
+                <td class="crop-td-area" style="font-size:24px; padding:20px 12px; font-weight:700;">${row.area.toFixed(1)}</td>
+                <td class="crop-td-prod" style="font-size:24px; padding:20px 12px; font-weight:700;">${row.prod.toFixed(2)}</td>
+                <td class="crop-td-yield" style="font-size:24px; padding:20px 12px; font-weight:700;">${row.yield.toFixed(2)}</td>
+                <td style="padding:20px 12px;">
+                  <span class="crop-loss-badge ${getLossClass(row.loss)}" style="font-size:22px; padding:8px 22px; border-radius:20px;">${row.loss.toFixed(2)}</span>
+                </td>
+                <td class="crop-td-potential" style="font-size:24px; padding:20px 12px; font-weight:700;">${row.potential.toFixed(2)}</td>
+              </tr>
+            `;
+        }).join('\n');
+
+        contentHTML = `
+            <div style="background: linear-gradient(165deg, var(--plum-mid), var(--plum-deep)); border-radius: 24px; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 30px 80px rgba(0,0,0,0.85); width: 95vw; height: 90vh; max-width: 1700px; max-height: 980px; padding: 32px 40px; color: var(--text-light); font-family: 'Rajdhani', sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
+                <div style="display:flex; justify-content:center; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.18); padding-bottom: 18px; margin-bottom: 18px; position:relative; width:100%;">
+                    <h2 style="margin:0; font-size:34px; font-weight:700; color:var(--sunset-2); text-transform:uppercase; letter-spacing:0.8px; text-align:center; width:100%;">${crop.title}</h2>
+                    <button onclick="closeCropCardModal()" style="position:absolute; right:0; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.12); border:none; color:#fff; font-size:28px; font-weight:bold; width:50px; height:50px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;">✕</button>
+                </div>
+                <div style="flex:1; overflow-y:auto;">
+                    <table class="crop-table" style="font-size:24px; width:100%;">
+                        <thead>
+                          <tr class="hdr" style="font-size:24px;">
+                            <th class="crop-th-year" style="padding:16px 12px; font-size:22px;">${crop.headers.year}</th>
+                            <th class="crop-th-area" style="padding:16px 12px; font-size:22px;">${crop.headers.area}</th>
+                            <th class="crop-th-prod" style="padding:16px 12px; font-size:22px;">${crop.headers.prod}</th>
+                            <th class="crop-th-yield" style="padding:16px 12px; font-size:22px;">${crop.headers.yield}</th>
+                            <th class="crop-th-loss" style="padding:16px 12px; font-size:22px;">${crop.headers.loss}</th>
+                            <th class="crop-th-potential" style="padding:16px 12px; font-size:22px;">${crop.headers.potential}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${tableRowsHTML}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } else {
+        contentHTML = `
+            <div style="background: linear-gradient(165deg, var(--indigo-mid), var(--indigo-deep)); border-radius: 24px; border: 1px solid rgba(0, 201, 167, 0.5); box-shadow: 0 30px 80px rgba(0,0,0,0.85); width: 95vw; height: 90vh; max-width: 1700px; max-height: 980px; padding: 32px 40px; color: var(--text-light); font-family: 'Rajdhani', sans-serif; display: flex; flex-direction: column; justify-content: space-between; position:relative;">
+                <div style="display:flex; justify-content:center; align-items:center; border-bottom: 1px solid rgba(255,255,255,0.18); padding-bottom: 18px; margin-bottom: 12px; position:relative; width:100%;">
+                    <h2 style="margin:0; font-size:34px; font-weight:700; color:var(--aurora-1); text-transform:uppercase; letter-spacing:0.8px; text-align:center; width:100%;">${cropName} Production Loss due to Water Shortage</h2>
+                    <button onclick="closeCropCardModal()" style="position:absolute; right:0; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.12); border:none; color:#fff; font-size:28px; font-weight:bold; width:50px; height:50px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;">✕</button>
+                </div>
+                <div style="position:relative; width:100%; flex:1; display:flex; flex-direction:column; justify-content:center;">
+                    <svg class="wheat-chart-svg" viewBox="0 0 1200 520" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; max-height: 68vh;">
+                        ${gridLabelsHTML}
+                        <text class="wheat-axis-title" x="28" y="240" transform="rotate(-90 28 240)" style="font-size:28px; font-weight:700;">${cropName} (${prodUnit})</text>
+                        <path class="wheat-gap-fill" d="${gapFillD}"/>
+                        <path class="wheat-line-potential" d="${targetPathD}" style="stroke-width:5.5px;"/>
+                        <path class="wheat-line-actual" d="${waterLossPathD}" style="stroke-width:5.5px;"/>
+                        ${targetCircles}
+                        ${waterLossCircles}
+
+                        ${targetBadges}
+                        ${waterLossBadges}
+                        
+                        <line id="modal-tracker-line" class="wheat-tracker-line" x1="0" y1="20" x2="0" y2="420" style="display:none; stroke-width:2.5px;" />
+                        <circle id="modal-tracker-actual" class="wheat-tracker-highlight point-actual-highlight" cx="0" cy="0" r="11" style="display:none;" />
+                        <circle id="modal-tracker-potential" class="wheat-tracker-highlight point-potential-highlight" cx="0" cy="0" r="11" style="display:none;" />
+
+                        ${xLabelsHTML}
+                        <text class="wheat-axis-title" x="610" y="504" style="font-size:28px; font-weight:700;">Year</text>
+                    </svg>
+                    <div id="modal-chart-tooltip" class="wheat-chart-tooltip" style="opacity:0; pointer-events:none; font-size:24px; padding:22px 28px; width:480px; border-width:2px; border-radius:14px; background:rgba(11,16,38,0.95);"></div>
+                </div>
+                <div class="wheat-legend-row" style="margin-top:16px; font-size:26px; font-weight:700; display:flex; justify-content:center; gap:48px;">
+                    <span><span class="wheat-legend-dot wheat-dot-potential" style="width:22px; height:22px;"></span>Target Production</span>
+                    <span><span class="wheat-legend-dot wheat-dot-actual" style="width:22px; height:22px;"></span>With Water Shortage</span>
+                </div>
+            </div>
+        `;
+    }
+
+    modal.innerHTML = contentHTML;
+    modal.style.display = 'flex';
+    requestAnimationFrame(() => {
+        modal.style.opacity = '1';
+    });
+
+    if (cardType === 'cardB') {
+        initModalChartInteractivity(cropName, cropKey, years, targetVals, waterLossVals, bounds, prodUnit);
+    }
+}
+
+function closeCropCardModal() {
+    const modal = document.getElementById('crop-card-modal');
+    if (modal) {
+        modal.style.opacity = '0';
+        setTimeout(() => {
+            modal.style.display = 'none';
+        }, 300);
+    }
+}
+
+function initModalChartInteractivity(cropName, cropKey, years, targetVals, waterLossVals, bounds, prodUnit) {
+    const modal = document.getElementById('crop-card-modal');
+    if (!modal) return;
+    const svg = modal.querySelector('.wheat-chart-svg');
+    const tooltip = modal.querySelector('#modal-chart-tooltip');
+    const trackerLine = svg.querySelector('#modal-tracker-line');
+    const trackerActual = svg.querySelector('#modal-tracker-actual');
+    const trackerPotential = svg.querySelector('#modal-tracker-potential');
+
+    if (!svg || !tooltip) return;
+
+    const minG = bounds.minG;
+    const maxG = bounds.maxG;
+    const range = maxG - minG || 1;
+
+    const xCoords = [];
+    const startX = 90;
+    const endX = 1130;
+    const stepX = (endX - startX) / Math.max(1, years.length - 1);
+    for (let i = 0; i < years.length; i++) {
+        xCoords.push(startX + i * stepX);
+    }
+
+    const targetY = targetVals.map(v => 420 - ((v - minG) / range) * 360);
+    const waterLossY = waterLossVals.map(v => 420 - ((v - minG) / range) * 360);
+
+    svg.addEventListener('mousemove', (e) => {
+        const rect = svg.getBoundingClientRect();
+        const mouseX = ((e.clientX - rect.left) / rect.width) * 1200;
+        const mouseY = ((e.clientY - rect.top) / rect.height) * 520;
+
+        let closestIdx = 0;
+        let minDist = Infinity;
+        xCoords.forEach((cx, idx) => {
+            const dist = Math.abs(mouseX - cx);
+            if (dist < minDist) {
+                minDist = dist;
+                closestIdx = idx;
+            }
+        });
+
+        if (mouseX >= 60 && mouseX <= 1160 && mouseY >= 10 && mouseY <= 470) {
+            const targetX = xCoords[closestIdx];
+            const tY = targetY[closestIdx];
+            const wY = waterLossY[closestIdx];
+            const yr = years[closestIdx];
+            const tVal = targetVals[closestIdx];
+            const wVal = waterLossVals[closestIdx];
+            const loss = tVal - wVal;
+            const lossPct = tVal > 0 ? ((loss / tVal) * 100).toFixed(1) : '0';
+
+            trackerLine.setAttribute('x1', targetX);
+            trackerLine.setAttribute('x2', targetX);
+            trackerLine.style.display = 'block';
+
+            trackerPotential.setAttribute('cx', targetX);
+            trackerPotential.setAttribute('cy', tY);
+            trackerPotential.style.display = 'block';
+
+            trackerActual.setAttribute('cx', targetX);
+            trackerActual.setAttribute('cy', wY);
+            trackerActual.style.display = 'block';
+
+            tooltip.innerHTML = `
+                <div class="wheat-tooltip-year" style="font-size:24px; font-weight:700; border-bottom:1px solid rgba(255,255,255,0.2); padding-bottom:8px; margin-bottom:10px;">${yr} - ${cropName} Water Shortage</div>
+                <div class="wheat-tooltip-row" style="font-size:22px; margin-top:8px;">
+                    <span class="wheat-tooltip-label" style="font-size:22px;">Target Production:</span>
+                    <span class="wheat-tooltip-val" style="color:var(--aurora-2); font-size:22px; font-weight:700;">${tVal.toFixed(2)} ${prodUnit}</span>
+                </div>
+                <div class="wheat-tooltip-row" style="font-size:22px; margin-top:6px;">
+                    <span class="wheat-tooltip-label" style="font-size:22px;">With Water Shortage:</span>
+                    <span class="wheat-tooltip-val" style="color:var(--aurora-1); font-size:22px; font-weight:700;">${wVal.toFixed(2)} ${prodUnit}</span>
+                </div>
+                <div class="wheat-tooltip-row" style="font-size:22px; border-top:1px dashed rgba(255,255,255,0.2); padding-top:8px; margin-top:8px;">
+                    <span class="wheat-tooltip-label" style="font-size:22px;">Production Shortfall:</span>
+                    <span class="wheat-tooltip-val" style="color:#f43f5e; font-size:22px; font-weight:700;">-${loss.toFixed(2)} ${prodUnit} <span class="tooltip-loss-zoom" style="font-size:26px; color:#ff2a55;">(${lossPct}%)</span></span>
+                </div>
+            `;
+
+            let tooltipX = ((targetX / 1200) * rect.width);
+            let tooltipY = ((wY / 520) * rect.height) - 60;
+
+            const tooltipWidth = 440;
+            if (tooltipX + tooltipWidth + 24 > rect.width) {
+                tooltipX = tooltipX - tooltipWidth - 24;
+            } else {
+                tooltipX = tooltipX + 24;
+            }
+
+            tooltip.style.left = `${tooltipX}px`;
+            tooltip.style.top = `${tooltipY}px`;
+            tooltip.style.opacity = '1';
+        } else {
+            hideModalTracker();
+        }
+    });
+
+    svg.addEventListener('mouseleave', () => {
+        hideModalTracker();
+    });
+
+    function hideModalTracker() {
+        trackerLine.style.display = 'none';
+        trackerActual.style.display = 'none';
+        trackerPotential.style.display = 'none';
+        tooltip.style.opacity = '0';
+    }
 }
 
 function updateWheatImpactOverlayPosition() {
@@ -4363,11 +5216,790 @@ function toggleWheatCard(cardId) {
     }
 }
 
+function showCropAutoplayOverlay() {
+    if (!document) return;
+    const mapContainer = document.getElementById('map');
+    if (!mapContainer) return;
+
+    let container = document.getElementById('crop-autoplay-overlay');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'crop-autoplay-overlay';
+        container.style.position = 'absolute';
+        container.style.top = '90px'; // Moved upwards to avoid overlaying map controls
+        container.style.right = '40px';
+        container.style.width = '750px';
+        container.style.zIndex = '1202';
+        container.style.pointerEvents = 'auto'; // allow interaction
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '15px';
+        mapContainer.appendChild(container);
+    }
+
+    // Reset sub-containers to trigger card entry animations
+    container.innerHTML = `
+        <div id="crop-autoplay-table-sub"></div>
+        <div id="crop-autoplay-graph-sub"></div>
+    `;
+
+    container.style.display = 'flex';
+
+    if (!document.getElementById('crop-autoplay-style')) {
+        const style = document.createElement('style');
+        style.id = 'crop-autoplay-style';
+        style.innerHTML = `
+            .autoplay-card {
+              border-radius:16px;
+              overflow:hidden;
+              box-shadow: 0 14px 32px rgba(0,0,0,.5);
+              background: linear-gradient(165deg, #16213e, #0b1026);
+              border: 1px solid rgba(0, 201, 167, 0.4);
+              font-family: 'Rajdhani', sans-serif;
+              color: #F4F1EA;
+              padding: 22px;
+              width: 100%;
+              box-sizing: border-box;
+            }
+
+            .autoplay-title {
+              font-size: 24px;
+              font-weight: 700;
+              text-transform: uppercase;
+              text-align: center;
+              margin-bottom: 18px;
+              letter-spacing: 0.5px;
+              background: linear-gradient(120deg, #4361EE, #00C9A7);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+            }
+
+            .autoplay-table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+
+            .autoplay-table th {
+              font-size: 16px;
+              font-weight: 700;
+              text-transform: uppercase;
+              padding: 12px 6px;
+              border-bottom: 2px solid rgba(255,255,255,.12);
+              text-align: center;
+            }
+
+            .autoplay-th-crop    { color: #F4F1EA; width: 12%; }
+            .autoplay-th-area    { color: #43DCB3; width: 12%; }
+            .autoplay-th-target  { color: #e9d8fd; width: 20%; }
+            .autoplay-th-stages  { color: #63B3ED; width: 25%; }
+            .autoplay-th-impact  { color: #ECC94B; width: 18%; }
+            .autoplay-th-loss    { color: #FC814A; width: 13%; }
+
+            .autoplay-table td {
+              padding: 14px 6px;
+              text-align: center;
+              vertical-align: middle;
+              border-bottom: 1px solid rgba(255,255,255,.06);
+              font-size: 16px;
+              line-height: 1.35;
+            }
+
+            .autoplay-row-active {
+              background: rgba(0, 201, 167, 0.08) !important;
+              box-shadow: inset 0 0 10px rgba(0, 201, 167, 0.2) !important;
+            }
+
+            .autoplay-td-crop {
+              font-weight: 700;
+              text-transform: uppercase;
+            }
+            .crop-rice-color { color: #43DCB3; }
+            .crop-cotton-color { color: #FC814A; }
+            .crop-maize-color { color: #ECC94B; }
+            .crop-sugarcane-color { color: #9A75EA; }
+
+            .autoplay-td-area {
+              color: #43DCB3;
+              font-weight: 600;
+            }
+
+            .autoplay-td-target {
+              color: #e9d8fd;
+              font-weight: 600;
+            }
+
+            .autoplay-td-stages {
+              color: #e2e8f0;
+              font-weight: 500;
+            }
+
+            .autoplay-td-impact {
+              color: #e2e8f0;
+              font-weight: 500;
+            }
+
+            /* Blinking Zoom Pulse for Estimated Loss % badge */
+            .autoplay-loss-badge {
+              display: inline-block;
+              font-size: 15px;
+              font-weight: 700;
+              padding: 5px 10px;
+              border-radius: 12px;
+              color: #1c1c1c;
+              white-space: nowrap;
+              transform-origin: center;
+              animation: cropZoomPulse 1.4s ease-in-out infinite;
+            }
+
+            @keyframes cropZoomPulse {
+              0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45);
+              }
+              50% {
+                transform: scale(1.08);
+                box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+              }
+              100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+              }
+            }
+
+            .autoplay-loss-badge.low { background: #4ade80; }
+            .autoplay-loss-badge.moderate { background: #fbbf24; }
+            .autoplay-loss-badge.elevated { background: #fb923c; }
+            .autoplay-loss-badge.severe { background: #f43f5e; color: #fff; }
+
+            /* Scoped Kharif Graph Card styles to prevent collision */
+            .autoplay-graph-card {
+              --bg-deep: #081525;
+              --panel-1: #0c2038;
+              --panel-2: #0a1a2e;
+              --border-cyan: rgba(79, 216, 255, 0.28);
+              --cyan: #4fd8ff;
+              --text-main: #e8f1f8;
+              --text-muted: #7a93ab;
+              --track-bg: rgba(255, 255, 255, 0.05);
+              --green-1: #00c853;
+              --green-2: #39ffb0;
+              --red-1: #ff4d6d;
+              --red-2: #c9002e;
+
+              width: 100%;
+              box-sizing: border-box;
+              background: linear-gradient(160deg, var(--panel-1) 0%, var(--panel-2) 100%);
+              border: 1px solid var(--border-cyan);
+              border-radius: 16px;
+              padding: 22px 30px 20px;
+              position: relative;
+              box-shadow: 0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.03);
+              opacity: 0;
+              animation: autoplayCardIn 0.6s ease-out forwards;
+              font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+              color: var(--text-main);
+            }
+
+            @keyframes autoplayCardIn {
+              from { opacity: 0; transform: translateY(10px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+
+            .autoplay-graph-card .scan-mask {
+              position: absolute;
+              inset: 0;
+              border-radius: 16px;
+              overflow: hidden;
+              pointer-events: none;
+              z-index: 0;
+            }
+
+            .autoplay-graph-card .scan {
+              position: absolute;
+              top: 0; left: 0;
+              width: 45%;
+              height: 100%;
+              background: linear-gradient(100deg, transparent, rgba(79,216,255,0.07), transparent);
+              transform: translateX(-120%);
+              animation: autoplayScanSweep 2.6s ease-out 0.35s 1;
+              pointer-events: none;
+            }
+
+            @keyframes autoplayScanSweep {
+              to { transform: translateX(320%); }
+            }
+
+            .autoplay-graph-card .autoplay-graph-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              margin-bottom: 12px;
+              position: relative;
+              z-index: 1;
+            }
+
+            .autoplay-graph-card .autoplay-graph-eyebrow {
+              font-size: 11px;
+              letter-spacing: 1.6px;
+              color: var(--cyan);
+              font-weight: 700;
+              margin: 0 0 6px;
+              text-transform: uppercase;
+              display: flex;
+              align-items: center;
+              gap: 7px;
+            }
+
+            .autoplay-graph-card .autoplay-graph-dot {
+              width: 6px; height: 6px; border-radius: 50%;
+              background: var(--green-2);
+              box-shadow: 0 0 8px rgba(57,255,176,0.9);
+              animation: autoplayGraphBlink 1.8s ease-in-out infinite;
+            }
+
+            @keyframes autoplayGraphBlink {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.35; }
+            }
+
+            .autoplay-graph-card .autoplay-graph-title {
+              font-size: 19px;
+              font-weight: 700;
+              color: var(--text-main);
+              margin: 0;
+            }
+
+            .autoplay-graph-card .autoplay-graph-rows {
+              display: flex;
+              flex-direction: column;
+              gap: 18px;
+              position: relative;
+              z-index: 1;
+            }
+
+            .autoplay-graph-card .crop-row {
+              display: flex;
+              align-items: center;
+              gap: 14px;
+              opacity: 0;
+              transform: translateY(14px);
+              animation: autoplayRowIn 0.6s ease-out forwards;
+              padding: 4px 6px;
+              border-radius: 8px;
+              transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            }
+
+            .autoplay-graph-card .crop-row.autoplay-row-active {
+              background: rgba(79, 216, 255, 0.08) !important;
+              box-shadow: inset 0 0 10px rgba(79, 216, 255, 0.2) !important;
+            }
+
+            .autoplay-graph-card .label-wrap {
+              flex: 0 0 108px;
+              position: relative;
+            }
+
+            .autoplay-graph-card .crop-label {
+              font-size: 14.5px;
+              font-weight: 700;
+              color: var(--text-main);
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              cursor: pointer;
+              transition: all 0.3s ease;
+            }
+            .autoplay-graph-card .crop-row.crop-disabled .crop-label {
+              opacity: 0.35;
+              text-decoration: line-through;
+            }
+            .autoplay-graph-card .crop-row.crop-disabled .track-wrap {
+              opacity: 0 !important;
+              visibility: hidden !important;
+              pointer-events: none !important;
+            }
+
+            .autoplay-graph-card .tooltip {
+              position: absolute;
+              bottom: 100%;
+              left: 0;
+              margin-bottom: 10px;
+              transform: translateY(-4px);
+              width: 230px;
+              background: #0c2440;
+              border: 1px solid var(--border-cyan);
+              border-radius: 10px;
+              padding: 10px 12px;
+              font-size: 11.5px;
+              line-height: 1.5;
+              color: var(--text-main);
+              opacity: 0;
+              visibility: hidden;
+              transition: opacity 0.2s ease, transform 0.2s ease;
+              z-index: 30;
+              box-shadow: 0 10px 24px rgba(0,0,0,0.5);
+              pointer-events: none;
+            }
+            .autoplay-graph-card .tooltip b { color: var(--cyan); }
+            .autoplay-graph-card .label-wrap:hover .tooltip {
+              opacity: 1;
+              visibility: visible;
+              transform: translateY(0);
+            }
+
+            .autoplay-graph-card .track-wrap {
+              flex: 1 1 auto;
+              height: 32px;
+              position: relative;
+              transition: opacity 0.4s ease, visibility 0.4s ease;
+            }
+
+            .autoplay-graph-card .track-bg {
+              position: absolute;
+              inset: 0;
+              background: var(--track-bg);
+              border-radius: 16px;
+              box-shadow: inset 0 1px 4px rgba(0,0,0,0.5);
+            }
+
+            .autoplay-graph-card .bar-fill {
+              position: absolute;
+              top: 0; left: 0;
+              height: 100%;
+              width: 0px;
+              border-radius: 16px;
+              background: linear-gradient(90deg, var(--green-1), var(--green-2));
+              box-shadow: 0 0 14px rgba(57,255,176,0.55);
+              transition: width 1.3s cubic-bezier(0.22,0.9,0.24,1);
+              display: flex;
+              align-items: center;
+              justify-content: flex-end;
+              padding-right: 8px;
+              overflow: hidden;
+            }
+
+            .autoplay-graph-card .bar-fill::after {
+              content: "";
+              position: absolute;
+              top: 0; left: 0; right: 0; bottom: 0;
+              background: linear-gradient(90deg, rgba(255,255,255,0.18), transparent 60%);
+            }
+
+            .autoplay-graph-card .bar-value {
+              position: relative;
+              z-index: 2;
+              font-size: 11px;
+              font-weight: 700;
+              color: #04351d;
+              white-space: nowrap;
+            }
+
+            .autoplay-graph-card .loss-circle {
+              position: absolute;
+              top: 50%;
+              left: 0;
+              width: 34px;
+              height: 34px;
+              margin-top: -17px;
+              border-radius: 50%;
+              background: radial-gradient(circle at 35% 30%, var(--red-1), var(--red-2));
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              color: #fff;
+              font-size: 9.5px;
+              font-weight: 700;
+              transform: scale(0);
+              opacity: 0;
+              box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+              white-space: nowrap;
+              transition: left 1.3s cubic-bezier(0.22,0.9,0.24,1);
+            }
+            .autoplay-graph-card .loss-circle.show {
+              animation: autoplayPopIn 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards,
+                         autoplayPulseRing 2.2s ease-out 0.5s infinite;
+            }
+            @keyframes autoplayPopIn {
+              0% { transform: scale(0); opacity: 0; }
+              70% { transform: scale(1.18); opacity: 1; }
+              100% { transform: scale(1); opacity: 1; }
+            }
+            @keyframes autoplayPulseRing {
+              0% { box-shadow: 0 0 0 0 rgba(255,77,109,0.55); }
+              70% { box-shadow: 0 0 0 10px rgba(255,77,109,0); }
+              100% { box-shadow: 0 0 0 0 rgba(255,77,109,0); }
+            }
+
+            .autoplay-graph-card .target-label {
+              position: absolute;
+              top: 50%;
+              left: 0;
+              transform: translateY(-50%) translateX(6px);
+              white-space: nowrap;
+              opacity: 0;
+              transition: opacity 0.4s ease, transform 0.4s ease, left 1.3s cubic-bezier(0.22,0.9,0.24,1);
+            }
+            .autoplay-graph-card .target-label.show {
+              opacity: 1;
+              transform: translateY(-50%) translateX(0);
+            }
+
+            .autoplay-graph-card .target-val {
+              font-size: 13px;
+              font-weight: 700;
+              color: var(--text-main);
+              display: block;
+            }
+
+            .autoplay-graph-card .autoplay-graph-legend {
+              display: flex;
+              gap: 22px;
+              margin-top: 20px;
+              padding-top: 12px;
+              border-top: 1px solid rgba(255,255,255,0.07);
+              position: relative;
+              z-index: 1;
+            }
+
+            .autoplay-graph-card .legend-item {
+              display: flex;
+              align-items: center;
+              gap: 7px;
+              font-size: 11.5px;
+              color: var(--text-muted);
+              transition: opacity 0.3s ease;
+            }
+
+            .autoplay-graph-card .legend-item.inactive {
+              opacity: 0.35;
+            }
+
+            .autoplay-graph-card .swatch {
+              width: 11px; height: 11px;
+              border-radius: 3px;
+            }
+            .autoplay-graph-card .swatch.green { background: linear-gradient(90deg, var(--green-1), var(--green-2)); }
+            .autoplay-graph-card .swatch.red { background: linear-gradient(135deg, var(--red-1), var(--red-2)); border-radius: 50%; }
+
+            /* Legend disable styles */
+            .autoplay-graph-card.hide-achieved .bar-fill {
+              width: 0px !important;
+              opacity: 0 !important;
+            }
+            .autoplay-graph-card.hide-achieved .bar-value {
+              opacity: 0 !important;
+            }
+
+            .autoplay-graph-card.hide-shortfall .loss-circle {
+              opacity: 0 !important;
+              transform: scale(0) !important;
+              animation: none !important;
+            }
+
+            .autoplay-graph-card .crop-row:nth-child(1) { animation-delay: 0.15s; }
+            .autoplay-graph-card .crop-row:nth-child(2) { animation-delay: 0.30s; }
+            .autoplay-graph-card .crop-row:nth-child(3) { animation-delay: 0.45s; }
+            .autoplay-graph-card .crop-row:nth-child(4) { animation-delay: 0.60s; }
+
+            @keyframes autoplayRowIn {
+              to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    renderCropAutoplayTable();
+}
+
+function animateAutoplayNumber(el, start, end, duration, format) {
+    const t0 = performance.now();
+    function tick(now) {
+        const t = Math.min(1, (now - t0) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const val = start + (end - start) * eased;
+        el.textContent = format(val);
+        if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+}
+
+function initCropAutoplayGraph() {
+    const graphSub = document.getElementById('crop-autoplay-graph-sub');
+    if (!graphSub) return;
+
+    // Ordered ranking-wise (descending order by production)
+    const crops = [
+        { name: "Sugarcane", production: 73.88, loss: 6.42, target: 80.30, critical: "Grand growth, cane elongation", impact: "Lower yield and quality" },
+        { name: "Maize",     production: 8.69,  loss: 1.07, target: 9.77,  critical: "Tasseling, silking",            impact: "Lower grain filling" },
+        { name: "Cotton",    production: 8.00,  loss: 1.64, target: 9.64,  critical: "Flowering, boll formation",     impact: "Flower and boll shedding" },
+        { name: "Rice",      production: 7.89,  loss: 1.28, target: 9.17,  critical: "Panicle initiation, flowering", impact: "Reduced pollination" }
+    ];
+
+    graphSub.innerHTML = `
+        <div class="autoplay-graph-card" id="autoplay-graph-card">
+          <div class="scan-mask"><div class="scan"></div></div>
+
+          <div class="autoplay-graph-header">
+            <div>
+              <p class="autoplay-graph-eyebrow"><span class="autoplay-graph-dot"></span>Kharif 2026&ndash;27</p>
+              <h2 class="autoplay-graph-title">Production vs Target by Crop</h2>
+            </div>
+          </div>
+
+          <div class="autoplay-graph-rows" id="autoplay-graph-rows">
+            ${crops.map(c => `
+              <div class="crop-row" data-crop="${c.name.toLowerCase()}">
+                <div class="label-wrap">
+                  <div class="crop-label">${c.name}</div>
+                  <div class="tooltip"><b>Critical stage:</b> ${c.critical}<br><b>Impact:</b> ${c.impact}</div>
+                </div>
+                <div class="track-wrap">
+                  <div class="track-bg"></div>
+                  <div class="bar-fill">
+                    <span class="bar-value">0.00</span>
+                  </div>
+                  <div class="loss-circle">${c.loss.toFixed(2)}</div>
+                  <div class="target-label">
+                    <span class="target-val">0.00</span>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="autoplay-graph-legend">
+            <div class="legend-item" id="legend-achieved"><span class="swatch green"></span>Achieved production</div>
+            <div class="legend-item" id="legend-shortfall"><span class="swatch red"></span>Shortfall from target</div>
+          </div>
+        </div>
+    `;
+
+    // Hook up interactive legend toggles
+    setTimeout(() => {
+        const achLegend = document.getElementById('legend-achieved');
+        const shortLegend = document.getElementById('legend-shortfall');
+        const card = document.getElementById('autoplay-graph-card');
+
+        if (achLegend && card) {
+            achLegend.style.cursor = 'pointer';
+            achLegend.onclick = () => {
+                card.classList.toggle('hide-achieved');
+                achLegend.classList.toggle('inactive');
+                layoutCropAutoplayGraph();
+            };
+        }
+
+        if (shortLegend && card) {
+            shortLegend.style.cursor = 'pointer';
+            shortLegend.onclick = () => {
+                card.classList.toggle('hide-shortfall');
+                shortLegend.classList.toggle('inactive');
+                layoutCropAutoplayGraph();
+            };
+        }
+
+        layoutCropAutoplayGraph();
+
+        // Hook up crop label clicks to toggle disable state
+        document.querySelectorAll('#autoplay-graph-card .crop-row').forEach(row => {
+            const label = row.querySelector('.crop-label');
+            if (label) {
+                label.onclick = () => {
+                    row.classList.toggle('crop-disabled');
+                    layoutCropAutoplayGraph();
+                };
+            }
+        });
+
+        // Animate values
+        const maxProduction = Math.max(...crops.map(c => c.production));
+        const CIRCLE_SIZE = 34;
+        const GAP_BAR_CIRCLE = 8;
+        const GAP_CIRCLE_LABEL = 10;
+        const LABEL_RESERVE = 66;
+
+        const sampleTrack = document.querySelector('#autoplay-graph-card .track-wrap');
+        if (!sampleTrack) return;
+        const trackWidth = sampleTrack.clientWidth;
+        const reserved = CIRCLE_SIZE + GAP_BAR_CIRCLE + GAP_CIRCLE_LABEL + LABEL_RESERVE;
+        const usable = Math.max(40, trackWidth - reserved);
+
+        document.querySelectorAll('#autoplay-graph-card .crop-row').forEach((row, i) => {
+            const c = crops[i];
+            const ratio = c.production / maxProduction;
+            const barPx = ratio * usable;
+
+            const valEl = row.querySelector('.bar-value');
+            const circle = row.querySelector('.loss-circle');
+            const targetLabel = row.querySelector('.target-label');
+            const targetVal = row.querySelector('.target-val');
+
+            animateAutoplayNumber(valEl, 0, c.production, 1300, v => v.toFixed(2));
+            setTimeout(() => circle.classList.add('show'), 1150);
+            setTimeout(() => {
+                targetLabel.classList.add('show');
+                animateAutoplayNumber(targetVal, 0, c.target, 700, v => v.toFixed(2));
+            }, 1300);
+        });
+    }, 100);
+}
+
+function layoutCropAutoplayGraph() {
+    const card = document.getElementById('autoplay-graph-card');
+    if (!card) return;
+
+    // Ordered ranking-wise (descending order by production)
+    const crops = [
+        { name: "Sugarcane", production: 73.88, loss: 6.42, target: 80.30 },
+        { name: "Maize",     production: 8.69,  loss: 1.07, target: 9.77 },
+        { name: "Cotton",    production: 8.00,  loss: 1.64, target: 9.64 },
+        { name: "Rice",      production: 7.89,  loss: 1.28, target: 9.17 }
+    ];
+
+    const isHideAchieved = card.classList.contains('hide-achieved');
+    const isHideShortfall = card.classList.contains('hide-shortfall');
+
+    // Filter crops to only include active (non-disabled) crops for maxProduction scaling
+    const activeCrops = crops.filter(c => {
+        const row = document.querySelector(`#autoplay-graph-card .crop-row[data-crop="${c.name.toLowerCase()}"]`);
+        return row ? !row.classList.contains('crop-disabled') : true;
+    });
+
+    const maxProduction = activeCrops.length > 0 ? Math.max(...activeCrops.map(c => c.production)) : 1;
+    const CIRCLE_SIZE = 34;
+    const GAP_BAR_CIRCLE = 8;
+    const GAP_CIRCLE_LABEL = 10;
+    const LABEL_RESERVE = 66;
+
+    const sampleTrack = document.querySelector('#autoplay-graph-card .track-wrap');
+    if (!sampleTrack) return;
+    const trackWidth = sampleTrack.clientWidth;
+
+    // Dynamically calculate reserved space to maximize usability when components are hidden
+    let reserved = 0;
+    if (!isHideShortfall) {
+        reserved += CIRCLE_SIZE + GAP_BAR_CIRCLE + GAP_CIRCLE_LABEL;
+    } else {
+        reserved += GAP_BAR_CIRCLE;
+    }
+    reserved += LABEL_RESERVE;
+
+    const usable = Math.max(40, trackWidth - reserved);
+
+    document.querySelectorAll('#autoplay-graph-card .crop-row').forEach((row, i) => {
+        const c = crops[i];
+        const ratio = c.production / maxProduction;
+        const barPx = isHideAchieved ? 0 : (ratio * usable);
+        
+        let circleLeft = 0;
+        let targetLeft = 0;
+
+        if (!isHideAchieved) {
+            circleLeft = barPx + GAP_BAR_CIRCLE;
+        } else {
+            circleLeft = 0;
+        }
+
+        if (!isHideShortfall) {
+            targetLeft = circleLeft + CIRCLE_SIZE + GAP_CIRCLE_LABEL;
+        } else {
+            targetLeft = barPx + GAP_BAR_CIRCLE;
+        }
+
+        const fill = row.querySelector('.bar-fill');
+        const circle = row.querySelector('.loss-circle');
+        const targetLabel = row.querySelector('.target-label');
+
+        circle.style.left = circleLeft + 'px';
+        targetLabel.style.left = targetLeft + 'px';
+        fill.style.width = barPx + 'px';
+    });
+}
+
+// Window resize layout syncing
+window.addEventListener('resize', () => {
+    const overlay = document.getElementById('crop-autoplay-overlay');
+    if (overlay && overlay.style.display !== 'none') {
+        layoutCropAutoplayGraph();
+    }
+});
+
+function renderCropAutoplayTable(currentCrop = '') {
+    const container = document.getElementById('crop-autoplay-overlay');
+    if (!container) return;
+
+    const tableSub = document.getElementById('crop-autoplay-table-sub');
+    if (tableSub) {
+        const data = [
+            { crop: "Rice", area: "3.39", targetProduction: "9.17", stages: "Panicle initiation, flowering", impact: "Reduced pollination", loss: "13 - 15", severity: "severe", colorClass: "crop-rice-color" },
+            { crop: "Cotton", area: "2.16", targetProduction: "9.64", stages: "Flowering, boll formation", impact: "Flower and boll shedding", loss: "16 - 18", severity: "elevated", colorClass: "crop-cotton-color" },
+            { crop: "Maize", area: "1.50", targetProduction: "9.77", stages: "Tasseling, silking", impact: "Lower grain filling", loss: "10 - 12", severity: "low", colorClass: "crop-maize-color" },
+            { crop: "Sugarcane", area: "1.14", targetProduction: "80.3", stages: "Grand growth, cane elongation", impact: "Lower yield and quality", loss: "7 - 9", severity: "moderate", colorClass: "crop-sugarcane-color" }
+        ];
+
+        const rowsHTML = data.map(row => {
+            const isActive = (row.crop.toLowerCase() === currentCrop.toLowerCase());
+            const rowClass = isActive ? 'class="autoplay-row-active"' : '';
+            return `
+              <tr ${rowClass}>
+                <td class="autoplay-td-crop ${row.colorClass}">${row.crop}</td>
+                <td class="autoplay-td-area">${row.area}</td>
+                <td class="autoplay-td-target">${row.targetProduction}</td>
+                <td class="autoplay-td-stages">${row.stages}</td>
+                <td class="autoplay-td-impact">${row.impact}</td>
+                <td>
+                  <span class="autoplay-loss-badge ${row.severity}">${row.loss}</span>
+                </td>
+              </tr>
+            `;
+        }).join('\n');
+
+        tableSub.innerHTML = `
+            <div class="autoplay-card">
+              <div class="autoplay-title">Monsoon impact on Major Kharif Crops (2026–2027)</div>
+              <table class="autoplay-table">
+                <thead>
+                  <tr>
+                    <th class="autoplay-th-crop">Crop</th>
+                    <th class="autoplay-th-area">Area (M ha)</th>
+                    <th class="autoplay-th-target">Target Production (MT)</th>
+                    <th class="autoplay-th-stages">Critical Stages</th>
+                    <th class="autoplay-th-impact">Impact</th>
+                    <th class="autoplay-th-loss">Estimated Loss (%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHTML}
+                </tbody>
+              </table>
+            </div>
+        `;
+    }
+
+    const graphSub = document.getElementById('crop-autoplay-graph-sub');
+    if (graphSub) {
+        let card = document.getElementById('autoplay-graph-card');
+        if (!card) {
+            initCropAutoplayGraph();
+        } else {
+            // Update active crop row highlighting in the graph container
+            document.querySelectorAll('#autoplay-graph-card .crop-row').forEach(row => {
+                const cropName = row.getAttribute('data-crop');
+                if (cropName === currentCrop.toLowerCase()) {
+                    row.classList.add('autoplay-row-active');
+                } else {
+                    row.classList.remove('autoplay-row-active');
+                }
+            });
+        }
+    }
+}
+
 let cropAutoplayInterval = null;
 let cropAutoplayIndex = -1;
 
 function handleCropAutoplayToggle(btn) {
-    const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
+    const crops = ['Rice', 'Cotton', 'Maize', 'Sugarcane'];
     const playIcon = btn.querySelector('.autoplay-play-icon');
     const pauseIcon = btn.querySelector('.autoplay-pause-icon');
 
@@ -4376,6 +6008,25 @@ function handleCropAutoplayToggle(btn) {
     } else {
         // Hide existing cards
         hideWheatImpactOverlay();
+
+        // Show autoplay table overlay
+        showCropAutoplayOverlay();
+
+        // Ensure Wheat is turned off when autoplay starts
+        const wheatToggle = document.getElementById('crop-wheat-toggle');
+        if (wheatToggle && wheatToggle.checked) {
+            wheatToggle.checked = false;
+            addWMSLayerToMap('Wheat', false, 'crop-classification');
+        }
+
+        // Show the autoplay slider
+        const sliderContainer = document.getElementById('crop-autoplay-slider');
+        if (sliderContainer) {
+            sliderContainer.classList.add('show');
+            sliderContainer.querySelectorAll('.crop-slider-item').forEach(item => {
+                item.classList.remove('crop-active');
+            });
+        }
 
         playIcon.style.display = 'none';
         pauseIcon.style.display = 'inline-block';
@@ -4399,7 +6050,20 @@ function handleCropAutoplayToggle(btn) {
                     toggle.checked = isNeedActive;
                 }
                 addWMSLayerToMap(cropName, isNeedActive, 'crop-classification');
+
+                // Update slider items animation state
+                const sliderItem = document.querySelector(`#crop-autoplay-slider .crop-slider-item[data-crop="${cropName.toLowerCase()}"]`);
+                if (sliderItem) {
+                    if (isNeedActive) {
+                        sliderItem.classList.add('crop-active');
+                    } else {
+                        sliderItem.classList.remove('crop-active');
+                    }
+                }
             });
+
+            // Update row active highlighting on table
+            renderCropAutoplayTable(currentCrop);
 
             cropAutoplayIndex = (cropAutoplayIndex + 1) % crops.length;
         };
@@ -4423,6 +6087,35 @@ function stopCropAutoplay() {
             pauseIcon.style.display = 'none';
         }
         btn.classList.remove('playing');
+    }
+
+    // Hide the autoplay table overlay
+    const autoplayContainer = document.getElementById('crop-autoplay-overlay');
+    if (autoplayContainer) {
+        autoplayContainer.style.display = 'none';
+    }
+
+    // Hide the autoplay slider
+    const sliderContainer = document.getElementById('crop-autoplay-slider');
+    if (sliderContainer) {
+        sliderContainer.classList.remove('show');
+        sliderContainer.querySelectorAll('.crop-slider-item').forEach(item => {
+            item.classList.remove('crop-active');
+        });
+    }
+
+    // Restore the individual crop overlay card if a checkbox is checked
+    const crops = ['Wheat', 'Rice', 'Cotton', 'Maize', 'Sugarcane'];
+    let lastCheckedCrop = null;
+    crops.forEach(crop => {
+        const el = document.getElementById('crop-' + crop.toLowerCase() + '-toggle');
+        if (el && el.checked) {
+            lastCheckedCrop = crop;
+        }
+    });
+
+    if (lastCheckedCrop) {
+        showWheatImpactOverlay(lastCheckedCrop);
     }
 }
 
@@ -4769,12 +6462,92 @@ function updateYieldComparisonOverlayPosition() {
     container.style.right = '12px';
 }
 
+let mainMapLifecycleRegistry = null;
+
+function forceMapResize(mapInstance) {
+    if (!mapInstance) return;
+
+    requestAnimationFrame(() => {
+        try {
+            mapInstance.resize();
+        } catch (error) {
+            console.warn('Main map resize warning:', error);
+        }
+    });
+
+    // Handle delayed resize to ensure rendering transition finishes
+    setTimeout(() => {
+        try {
+            mapInstance.resize();
+        } catch (error) {
+            console.warn('Main map delayed resize warning:', error);
+        }
+    }, 200);
+
+    setTimeout(() => {
+        try {
+            mapInstance.resize();
+        } catch (error) {
+            console.warn('Main map transition resize warning:', error);
+        }
+    }, 350);
+}
+
 function initMap() {
+    // Teardown any preexisting instance to reclaim WebGL memory
+    if (typeof map !== 'undefined' && map) {
+        try {
+            map.remove();
+        } catch (e) {
+            console.warn("Main map cleanup skipped:", e);
+        }
+        map = null;
+    }
+
+    // Reset boundary event states and selections
+    districtBoundaryEventsBound = false;
+    tehsilBoundaryEventsBound = false;
+    selectedDistrict = [];
+    selectedTehsils = [];
+
     map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
         center: [69.3451, 30.3753], // Center on Pakistan
         zoom: 4
+    });
+
+    window.map = map;
+    window.mapInstance = map;
+
+    // Set up lifecycle AbortController to prevent duplicate listeners
+    if (mainMapLifecycleRegistry) {
+        mainMapLifecycleRegistry.abort();
+    }
+    mainMapLifecycleRegistry = new AbortController();
+    const signal = mainMapLifecycleRegistry.signal;
+
+    const resizeHandler = () => {
+        if (!window.map || window.map !== map) return;
+
+        // Apply native map padding dynamically instead of CSS padding-top
+        // to prevent click/highlight coordinate offsets.
+        const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        map.setPadding({ top: isFullscreen ? 74 : 0, bottom: 0, left: 0, right: 0 });
+
+        forceMapResize(map);
+    };
+
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(eventType => {
+        document.addEventListener(eventType, resizeHandler, { signal });
+    });
+    window.addEventListener('resize', resizeHandler, { signal });
+
+    map.on('remove', () => {
+        if (mainMapLifecycleRegistry) {
+            mainMapLifecycleRegistry.abort();
+            mainMapLifecycleRegistry = null;
+        }
     });
 
     // Add basemap control
@@ -4905,6 +6678,7 @@ window.handleCropTopologyToggle = handleCropTopologyToggle;
 window.handlePrecipitationToggle = handlePrecipitationToggle;
 window.handleDroughtIndexToggle = handleDroughtIndexToggle;
 window.handleProvincialToggle = handleProvincialToggle;
+window.handleCropHighlightToggle = handleCropHighlightToggle;
 window.handleTemperatureToggle = handleTemperatureToggle;
 window.initMap = initMap;
 window.startDistrictBlinking = startDistrictBlinking;

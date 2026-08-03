@@ -912,11 +912,20 @@ function renderChart() {
         return;
     }
 
-    let html = '<div class="gantt-chart">';
-    html += '<div class="gantt-header-cell">Crop</div>';
-    MONTHS.forEach(month => {
-        html += `<div class="gantt-header-cell">${month}</div>`;
-    });
+    let rowsBody = document.getElementById('gantt-rows-body');
+    if (!rowsBody) {
+        let html = '<div class="gantt-chart">';
+        html += '<div class="gantt-header-cell">Crop</div>';
+        MONTHS.forEach(month => {
+            html += `<div class="gantt-header-cell">${month}</div>`;
+        });
+        html += '<div id="gantt-rows-body" style="display: contents;"></div>';
+        html += '</div>';
+        
+        chartDiv.className = '';
+        chartDiv.innerHTML = html;
+        rowsBody = document.getElementById('gantt-rows-body');
+    }
 
     const groups = {};
     data.forEach(item => {
@@ -988,12 +997,16 @@ function renderChart() {
         }
     ];
 
+    const dynamicFragment = document.createDocumentFragment();
+
     Object.values(groups).forEach(group => {
         const mergedSow = normalizeAndSplit(mergeRanges(group.sowRanges));
         const mergedHarv = normalizeAndSplit(mergeRanges(group.harvRanges));
 
-        html += '<div class="gantt-row">';
-        html += `
+        const rowElement = document.createElement('div');
+        rowElement.className = 'gantt-row';
+
+        let rowHtml = `
             <div class="gantt-cell gantt-crop-name">
                 <button class="gantt-crop-icon" type="button" data-crop="${group.crop}" aria-label="Open ${group.crop} details">
                     ${getCropInitial(group.crop)}
@@ -1002,17 +1015,17 @@ function renderChart() {
             </div>
         `;
 
-        html += '<div class="gantt-cell gantt-months-wrapper" style="grid-column: 2 / span 12;">';
-        html += '<div class="gantt-months" aria-hidden="true">';
+        rowHtml += '<div class="gantt-cell gantt-months-wrapper" style="grid-column: 2 / span 12;">';
+        rowHtml += '<div class="gantt-months" aria-hidden="true">';
         MONTHS.forEach(() => {
-            html += '<div class="gantt-month-grid"></div>';
+            rowHtml += '<div class="gantt-month-grid"></div>';
         });
-        html += '</div>';
+        rowHtml += '</div>';
 
-        html += '<div class="gantt-overlay">';
+        rowHtml += '<div class="gantt-overlay">';
 
         floodWindows.forEach(window => {
-            html += `
+            rowHtml += `
                 <div class="gantt-window-band ${window.className}"
                      style="left: ${window.left}%; width: ${window.width}%"
                      aria-hidden="true"></div>
@@ -1024,7 +1037,7 @@ function renderChart() {
             const width = ((seg.end - seg.start + 1) / 365) * 100;
             const startDate = doyToDate(seg.start);
             const endDate = doyToDate(seg.end);
-            html += `
+            rowHtml += `
                 <div class="gantt-bar gantt-sowing-bar"
                      style="left: ${left}%; width: ${width}%"
                      data-type="Sowing"
@@ -1039,7 +1052,7 @@ function renderChart() {
             const width = ((seg.end - seg.start + 1) / 365) * 100;
             const startDate = doyToDate(seg.start);
             const endDate = doyToDate(seg.end);
-            html += `
+            rowHtml += `
                 <div class="gantt-bar gantt-harvest-bar"
                      style="left: ${left}%; width: ${width}%"
                      data-type="Harvesting"
@@ -1049,14 +1062,15 @@ function renderChart() {
             `;
         });
 
-        html += '</div>';
-        html += '</div>';
-        html += '</div>';
+        rowHtml += '</div>';
+        rowHtml += '</div>';
+
+        rowElement.innerHTML = rowHtml;
+        dynamicFragment.appendChild(rowElement);
     });
 
-    html += '</div>';
-    chartDiv.className = '';
-    chartDiv.innerHTML = html;
+    rowsBody.innerHTML = '';
+    rowsBody.appendChild(dynamicFragment);
 
     addBarHoverEffects();
     addCropIconClickHandlers();
@@ -1157,26 +1171,34 @@ function closeCropModal() {
     modal.setAttribute('aria-hidden', 'true');
 }
 
+let chartAbortController = null;
+
 function setupModalEvents() {
     const modal = document.getElementById('ganttCropModal');
     if (!modal) return;
 
+    if (chartAbortController) {
+        chartAbortController.abort();
+    }
+    chartAbortController = new AbortController();
+    const signal = chartAbortController.signal;
+
     const closeButton = modal.querySelector('.gantt-modal-close');
     if (closeButton) {
-        closeButton.addEventListener('click', closeCropModal);
+        closeButton.addEventListener('click', closeCropModal, { signal });
     }
 
     modal.addEventListener('click', (event) => {
         if (event.target === modal) {
             closeCropModal();
         }
-    });
+    }, { signal });
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && modal.classList.contains('show')) {
             closeCropModal();
         }
-    });
+    }, { signal });
 }
 
 async function initChart() {

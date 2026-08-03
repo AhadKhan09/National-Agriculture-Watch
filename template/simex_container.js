@@ -16,6 +16,14 @@ function forceSimexMapResize(simexMap) {
             console.warn('Simex map delayed resize warning:', error);
         }
     }, 180);
+
+    setTimeout(() => {
+        try {
+            simexMap.resize();
+        } catch (error) {
+            console.warn('Simex map transition resize warning:', error);
+        }
+    }, 350);
 }
 
 // Toggle Simex Accordion
@@ -27,10 +35,16 @@ function toggleSimexAccordion(id) {
     // Close all other accordions
     document.querySelectorAll('.simex-accordion-content').forEach(acc => {
         if (acc.id !== id) {
+            const wasActiveAcc = acc.classList.contains('active');
             acc.classList.remove('active');
             const otherHeader = acc.previousElementSibling;
             const otherIcon = otherHeader.querySelector('.simex-accordion-icon');
             if (otherIcon) otherIcon.style.transform = 'rotate(0deg)';
+            
+            // Clean up toggles inside closed accordions
+            if (wasActiveAcc) {
+                cleanupAccordionLayers(acc.id);
+            }
         }
     });
 
@@ -42,7 +56,32 @@ function toggleSimexAccordion(id) {
     if (icon) {
         icon.style.transform = isNowActive ? 'rotate(180deg)' : 'rotate(0deg)';
     }
+
+    // Clean up toggles if the clicked accordion was collapsed
+    if (!isNowActive) {
+        cleanupAccordionLayers(id);
+    }
 }
+
+function cleanupAccordionLayers(accordionId) {
+    const accordion = document.getElementById(accordionId);
+    if (!accordion) return;
+
+    const checkboxes = accordion.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(chk => {
+        if (chk.checked) {
+            chk.checked = false;
+            // Execute inline onchange or dispatch event
+            if (typeof chk.onchange === 'function') {
+                chk.onchange();
+            } else {
+                chk.dispatchEvent(new Event('change'));
+            }
+        }
+    });
+}
+
+let simexAbortController = null;
 
 // Show map in simex content area
 function showSimexMap() {
@@ -50,9 +89,14 @@ function showSimexMap() {
     if (!simexContent) return;
 
     if (window.simexMapInstance) {
-        window.simexMapInstance.remove();
+        try {
+            window.simexMapInstance.remove();
+        } catch (e) {
+            console.warn("Simex map cleanup skipped:", e);
+        }
         window.simexMapInstance = null;
     }
+    simexGodownsPopupBound = false; // Reset popup bound state tracker
 
     // Clear current content
     simexContent.innerHTML = '';
@@ -87,23 +131,34 @@ function showSimexMap() {
     // Store reference for cleanup
     window.simexMapInstance = simexMap;
 
+    if (simexAbortController) {
+        simexAbortController.abort();
+    }
+    simexAbortController = new AbortController();
+    const signal = simexAbortController.signal;
+
     const resizeHandler = () => {
         if (!window.simexMapInstance || window.simexMapInstance !== simexMap) return;
+
+        // Apply native map padding dynamically instead of CSS padding-top
+        // to prevent click/highlight coordinate offsets.
+        const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        simexMap.setPadding({ top: isFullscreen ? 74 : 0, bottom: 0, left: 0, right: 0 });
+
         forceSimexMapResize(simexMap);
     };
 
-    document.addEventListener('fullscreenchange', resizeHandler);
-    document.addEventListener('webkitfullscreenchange', resizeHandler);
-    document.addEventListener('mozfullscreenchange', resizeHandler);
-    document.addEventListener('MSFullscreenChange', resizeHandler);
-    window.addEventListener('resize', resizeHandler);
+    document.addEventListener('fullscreenchange', resizeHandler, { signal });
+    document.addEventListener('webkitfullscreenchange', resizeHandler, { signal });
+    document.addEventListener('mozfullscreenchange', resizeHandler, { signal });
+    document.addEventListener('MSFullscreenChange', resizeHandler, { signal });
+    window.addEventListener('resize', resizeHandler, { signal });
 
     simexMap.on('remove', () => {
-        document.removeEventListener('fullscreenchange', resizeHandler);
-        document.removeEventListener('webkitfullscreenchange', resizeHandler);
-        document.removeEventListener('mozfullscreenchange', resizeHandler);
-        document.removeEventListener('MSFullscreenChange', resizeHandler);
-        window.removeEventListener('resize', resizeHandler);
+        if (simexAbortController) {
+            simexAbortController.abort();
+            simexAbortController = null;
+        }
     });
 
     // Add provincial boundary when map loads
@@ -253,9 +308,44 @@ function handleSimexDataToggle(dataType, isChecked) {
     }
 
     const map = window.simexMapInstance;
+    const toggleIdMap = {
+        'AOI': 'aoi-toggle',
+        'LST': 'lst-toggle',
+        'Frost': 'frost-toggle',
+        'Precipitation': 'precipitation-toggle',
+        'Soil Moisture': 'soil-moisture-toggle',
+        'Temperature': 'temperature-toggle',
+        'Humidity': 'humidity-toggle'
+    };
+
+    const currentToggleId = toggleIdMap[dataType];
+    const currentToggle = document.getElementById(currentToggleId);
+
+    // Bidirectional sync: check if the accordion is active
+    const simexDataAccordion = document.getElementById('simex-data');
+    const isAccordionActive = simexDataAccordion && simexDataAccordion.classList.contains('active');
+
+    // Block interaction gracefully if panel visibility states do not match
+    if (!isAccordionActive && isChecked) {
+        console.warn("Interaction blocked: Expand the Simex Data accordion before activating layers.");
+        if (currentToggle) currentToggle.checked = false;
+        return;
+    }
 
     if (isChecked) {
         console.log('Loading', dataType, 'data...');
+        
+        // Enforce structural exclusivity: turn off other toggles in Simex Data
+        Object.entries(toggleIdMap).forEach(([type, id]) => {
+            if (id !== currentToggleId) {
+                const el = document.getElementById(id);
+                if (el && el.checked) {
+                    el.checked = false;
+                    hideSimexDataLayer(type, map);
+                }
+            }
+        });
+
         loadSimexDataLayer(dataType, map);
     } else {
         console.log('Hiding', dataType, 'data...');
@@ -322,20 +412,34 @@ function loadSimexDataLayer(dataType, map) {
         return;
     }
 
+    const toggleIdMap = {
+        'AOI': 'aoi-toggle',
+        'LST': 'lst-toggle',
+        'Frost': 'frost-toggle',
+        'Precipitation': 'precipitation-toggle',
+        'Soil Moisture': 'soil-moisture-toggle',
+        'Temperature': 'temperature-toggle',
+        'Humidity': 'humidity-toggle'
+    };
+    const currentToggleId = toggleIdMap[dataType];
+    const currentToggle = document.getElementById(currentToggleId);
+
     try {
         // Check if source already exists
         if (map.getSource(config.sourceId)) {
             console.log('Source already exists:', config.sourceId);
             // Just make sure the layer is visible
             if (map.getLayer(config.layerId)) {
-                map.setLayoutProperty(config.layerId, 'visibility', 'visible');
+                map.setLayoutProperty(config.layerId, 'visibility', (currentToggle && currentToggle.checked) ? 'visible' : 'none');
             }
             // If an outline layer is present, make sure it's visible too
             if (map.getLayer(config.layerId + '-outline')) {
-                map.setLayoutProperty(config.layerId + '-outline', 'visibility', 'visible');
+                map.setLayoutProperty(config.layerId + '-outline', 'visibility', (currentToggle && currentToggle.checked) ? 'visible' : 'none');
             }
             return;
         }
+
+        const isVisible = (currentToggle && currentToggle.checked) ? 'visible' : 'none';
 
         if (config.type === 'wfs') {
             // Add WFS source
@@ -349,7 +453,10 @@ function loadSimexDataLayer(dataType, map) {
                 id: config.layerId,
                 type: config.layerType,
                 source: config.sourceId,
-                paint: config.paint
+                paint: config.paint,
+                layout: {
+                    'visibility': isVisible
+                }
             });
 
             // If this is AOI, add an outline line layer to make it hollow with an outline
@@ -363,11 +470,15 @@ function loadSimexDataLayer(dataType, map) {
                     paint: {
                         'line-color': '#fa1313',
                         'line-width': 2
+                    },
+                    layout: {
+                        'visibility': isVisible
                     }
                 });
 
-                // Add legend entry for AOI in simex map (hollow style) as a line
-                addSimexLegendEntry('aoi', '#fa1313', 'AOI', true, 'line');
+                if (currentToggle && currentToggle.checked) {
+                    addSimexLegendEntry('aoi', '#fa1313', 'AOI', true, 'line');
+                }
             }
         } else if (config.type === 'wms') {
             // Add WMS source
@@ -384,6 +495,9 @@ function loadSimexDataLayer(dataType, map) {
                 source: config.sourceId,
                 paint: {
                     'raster-opacity': 0.7
+                },
+                layout: {
+                    'visibility': isVisible
                 }
             });
         }
@@ -484,27 +598,123 @@ function handleSimexClick(simexType) {
     return false;
 }
 
-// Handle simex toggle
-function handleSimexToggle(isChecked, dataType) {
-    // Check if simex-data accordion is open
+// Refactored synchronization hook inside simex_container.js
+function handleSimexToggle(isChecked, dataType, triggeringElement) {
     const simexDataAccordion = document.getElementById('simex-data');
-    const isSimexDataOpen = simexDataAccordion && simexDataAccordion.classList.contains('active');
+    const isAccordionActive = simexDataAccordion && simexDataAccordion.classList.contains('active');
 
-    if (isSimexDataOpen) {
-        // If simex data is open, don't load charts
-        console.log('Simex data accordion is open - charts disabled');
+    // Resolve triggeringElement dynamically if not passed but dataType is provided
+    if (!triggeringElement && dataType) {
+        triggeringElement = document.getElementById(dataType + '-toggle');
+    }
+
+    // Block interaction gracefully if panel visibility states do not match
+    if (isAccordionActive && isChecked) {
+        console.warn("Interaction blocked: Close the charts dashboard before switching spatial contexts.");
+        if (triggeringElement) triggeringElement.checked = false;
         return;
     }
 
     if (isChecked) {
-        // Load the simex data
+        // Enforce structural exclusivity across secondary inputs
+        turnOffOtherSimexToggles(triggeringElement ? triggeringElement.id : null);
         loadSimexDataByType(dataType);
-
-        // Turn off other toggles
-        turnOffOtherSimex(event.target.id);
     } else {
-        // If unchecked, maybe hide or clear data
+        removeSpecificSimexLayer(dataType);
+    }
+}
+
+function turnOffOtherSimexToggles(activeToggleId) {
+    const simexToggles = document.querySelectorAll('.simex-toggle-input');
+    simexToggles.forEach(toggle => {
+        if (toggle.id !== activeToggleId && toggle.checked) {
+            toggle.checked = false;
+            // Also tear down its mapped spatial layer representation cleanly
+            removeSpecificSimexLayer(toggle.dataset.type);
+        }
+    });
+}
+
+function removeSpecificSimexLayer(dataType) {
+    if (!dataType) return;
+
+    const map = window.simexMapInstance;
+
+    // 1. Check if it's one of the core spatial layers inside #simex-data
+    const spatialTypes = ['AOI', 'LST', 'Frost', 'Precipitation', 'Soil Moisture', 'Temperature', 'Humidity'];
+    const exactSpatialType = spatialTypes.find(t => t.toLowerCase() === dataType.toLowerCase() || t === dataType);
+    if (exactSpatialType) {
+        if (map) {
+            hideSimexDataLayer(exactSpatialType, map);
+        }
+        return;
+    }
+
+    // 2. Check if it's a chart/dashboard visualization
+    const chartTypes = ['food-crops', 'horticulture', 'cash-crops', 'combined', 'import', 'export'];
+    if (chartTypes.includes(dataType.toLowerCase()) || chartTypes.map(c => c.replace('-', ' ')).includes(dataType.toLowerCase())) {
         clearSimexContent();
+        return;
+    }
+
+    // 3. Check for other common Simex map layers
+    if (!map) return;
+
+    const lowerType = dataType.toLowerCase();
+    
+    // Flood layers
+    if (/^\d{4}$/.test(dataType)) {
+        removeSimexCommonLayer('flood_' + dataType);
+    } else if (lowerType.startsWith('flood_')) {
+        removeSimexCommonLayer(dataType);
+    }
+    // Godowns
+    else if (lowerType === 'godowns') {
+        removeSimexCommonLayer('godowns');
+        removeSimexLegendEntry('godowns');
+    }
+    // Crop Stress
+    else if (lowerType === 'crop stress' || lowerType === 'crop_stress') {
+        removeSimexCommonLayer('crop_stress');
+        removeSimexLegendEntry('simex_cropstress_veryhigh');
+        removeSimexLegendEntry('simex_cropstress_high');
+        removeSimexLegendEntry('simex_cropstress_medium');
+        removeSimexLegendEntry('simex_cropstress_low');
+        removeSimexLegendEntry('simex_cropstress_verylow');
+    }
+    // Irrigation
+    else if (lowerType === 'irrigation') {
+        removeSimexCommonLayer('irrigation');
+    }
+    // Main Rivers
+    else if (lowerType === 'main rivers' || lowerType === 'main_rivers') {
+        removeSimexCommonLayer('main_rivers');
+    }
+    // CCAs
+    else if (lowerType === 'ccas') {
+        removeSimexCommonLayer('ccas');
+    }
+    // Major Crop Type (Rice, Sugarcane, Wheat)
+    else if (['rice', 'sugarcane', 'wheat'].includes(lowerType)) {
+        removeSimexCommonLayer('major_crop_' + lowerType);
+    } else if (lowerType.startsWith('major_crop_')) {
+        removeSimexCommonLayer(dataType);
+    }
+    // Cropping Zones (Balochistan, Sindh, KPK, Punjab, AJK)
+    else if (['balochistan', 'sindh', 'kpk', 'punjab', 'ajk'].includes(lowerType)) {
+        removeSimexCommonLayer('cropping_' + lowerType);
+        const zoneToggles = ['cropping-balochistan-toggle', 'cropping-sindh-toggle', 'cropping-kpk-toggle', 'cropping-punjab-toggle', 'cropping-ajk-toggle'];
+        const stillOn = zoneToggles.some(id => document.getElementById(id) && document.getElementById(id).checked);
+        if (!stillOn) {
+            removeSimexLegendEntry('cropping_zones');
+        }
+    } else if (lowerType.startsWith('cropping_')) {
+        removeSimexCommonLayer(dataType);
+        const zoneToggles = ['cropping-balochistan-toggle', 'cropping-sindh-toggle', 'cropping-kpk-toggle', 'cropping-punjab-toggle', 'cropping-ajk-toggle'];
+        const stillOn = zoneToggles.some(id => document.getElementById(id) && document.getElementById(id).checked);
+        if (!stillOn) {
+            removeSimexLegendEntry('cropping_zones');
+        }
     }
 }
 

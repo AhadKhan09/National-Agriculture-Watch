@@ -66,9 +66,9 @@ window.addEventListener('resize', function () {
 
 // Handle fullscreen changes to resize maps and charts properly
 ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(eventType => {
-    document.addEventListener(eventType, function() {
+    document.addEventListener(eventType, function () {
         // Handle Mapbox resize
-        setTimeout(function() {
+        setTimeout(function () {
             if (typeof map !== 'undefined' && map) {
                 map.resize();
             }
@@ -83,7 +83,7 @@ window.addEventListener('resize', function () {
         // Handle Navbar in fullscreen
         const navbar = document.querySelector('.navbar');
         const fse = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
-        
+
         if (fse && fse !== document.documentElement && fse !== document.body) {
             // We are entering fullscreen on a specific container
             fse.appendChild(navbar);

@@ -212,38 +212,64 @@
                                 <div id="crop-classification-acc" class="map-accordion-content">
                                     <div class="map-toggle-container">
                                         <label>Wheat</label>
-                                        <label class="map-toggle-switch">
-                                            <input type="checkbox" id="crop-wheat-toggle" onchange="handleCropClassificationToggle('Wheat', this.checked)">
-                                            <span class="map-toggle-slider"></span>
-                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 15px;">
+                                            <label class="map-toggle-switch">
+                                                <input type="checkbox" id="crop-wheat-toggle" onchange="handleCropClassificationToggle('Wheat', this.checked)">
+                                                <span class="map-toggle-slider"></span>
+                                            </label>
+                                        </div>
                                     </div>
                                     <div class="map-toggle-container">
                                         <label>Rice</label>
-                                        <label class="map-toggle-switch">
-                                            <input type="checkbox" id="crop-rice-toggle" onchange="handleCropClassificationToggle('Rice', this.checked)">
-                                            <span class="map-toggle-slider"></span>
-                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 15px;">
+                                            <label class="circular-checkbox-container" title="Show affected districts blinking">
+                                                <input type="checkbox" id="crop-rice-highlight" onchange="handleCropHighlightToggle('Rice', this.checked)">
+                                                <span class="circular-checkmark"></span>
+                                            </label>
+                                            <label class="map-toggle-switch">
+                                                <input type="checkbox" id="crop-rice-toggle" onchange="handleCropClassificationToggle('Rice', this.checked)">
+                                                <span class="map-toggle-slider"></span>
+                                            </label>
+                                        </div>
                                     </div>
                                     <div class="map-toggle-container">
                                         <label>Cotton</label>
-                                        <label class="map-toggle-switch">
-                                            <input type="checkbox" id="crop-cotton-toggle" onchange="handleCropClassificationToggle('Cotton', this.checked)">
-                                            <span class="map-toggle-slider"></span>
-                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 15px;">
+                                            <label class="circular-checkbox-container" title="Show affected districts blinking">
+                                                <input type="checkbox" id="crop-cotton-highlight" onchange="handleCropHighlightToggle('Cotton', this.checked)">
+                                                <span class="circular-checkmark"></span>
+                                            </label>
+                                            <label class="map-toggle-switch">
+                                                <input type="checkbox" id="crop-cotton-toggle" onchange="handleCropClassificationToggle('Cotton', this.checked)">
+                                                <span class="map-toggle-slider"></span>
+                                            </label>
+                                        </div>
                                     </div>
                                     <div class="map-toggle-container">
                                         <label>Maize</label>
-                                        <label class="map-toggle-switch">
-                                            <input type="checkbox" id="crop-maize-toggle" onchange="handleCropClassificationToggle('Maize', this.checked)">
-                                            <span class="map-toggle-slider"></span>
-                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 15px;">
+                                            <label class="circular-checkbox-container" title="Show affected districts blinking">
+                                                <input type="checkbox" id="crop-maize-highlight" onchange="handleCropHighlightToggle('Maize', this.checked)">
+                                                <span class="circular-checkmark"></span>
+                                            </label>
+                                            <label class="map-toggle-switch">
+                                                <input type="checkbox" id="crop-maize-toggle" onchange="handleCropClassificationToggle('Maize', this.checked)">
+                                                <span class="map-toggle-slider"></span>
+                                            </label>
+                                        </div>
                                     </div>
                                     <div class="map-toggle-container">
                                         <label>Sugarcane</label>
-                                        <label class="map-toggle-switch">
-                                            <input type="checkbox" id="crop-sugarcane-toggle" onchange="handleCropClassificationToggle('Sugarcane', this.checked)">
-                                            <span class="map-toggle-slider"></span>
-                                        </label>
+                                        <div style="display: flex; align-items: center; gap: 15px;">
+                                            <label class="circular-checkbox-container" title="Show affected districts blinking">
+                                                <input type="checkbox" id="crop-sugarcane-highlight" onchange="handleCropHighlightToggle('Sugarcane', this.checked)">
+                                                <span class="circular-checkmark"></span>
+                                            </label>
+                                            <label class="map-toggle-switch">
+                                                <input type="checkbox" id="crop-sugarcane-toggle" onchange="handleCropClassificationToggle('Sugarcane', this.checked)">
+                                                <span class="map-toggle-slider"></span>
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -344,11 +370,18 @@
                                             <span class="map-toggle-slider"></span>
                                         </label>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                                 </div>
+                             </div>
+                         </div>
+                         <!-- Autoplay Crop Slider -->
+                         <div id="crop-autoplay-slider" class="crop-autoplay-slider">
+                             <div class="crop-slider-item slider-rice" data-crop="rice">Rice</div>
+                             <div class="crop-slider-item slider-cotton" data-crop="cotton">Cotton</div>
+                             <div class="crop-slider-item slider-maize" data-crop="maize">Maize</div>
+                             <div class="crop-slider-item slider-sugarcane" data-crop="sugarcane">Sugarcane</div>
+                         </div>
+                     </div>
+                 </div>
                 </div>
 
                 <!-- Right Column - Portals and Simex Data -->
@@ -428,7 +461,7 @@
                                     <div class="simex-toggle-container">
                                         <label>AOI</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="aoi-toggle" onchange="handleSimexDataToggle('AOI', this.checked)">
+                                            <input type="checkbox" id="aoi-toggle" class="simex-toggle-input" data-type="AOI" onchange="handleSimexDataToggle('AOI', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -437,7 +470,7 @@
                                     <div class="simex-toggle-container">
                                         <label>LST</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="lst-toggle" onchange="handleSimexDataToggle('LST', this.checked)">
+                                            <input type="checkbox" id="lst-toggle" class="simex-toggle-input" data-type="LST" onchange="handleSimexDataToggle('LST', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -446,7 +479,7 @@
                                     <div class="simex-toggle-container">
                                         <label>Frost</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="frost-toggle" onchange="handleSimexDataToggle('Frost', this.checked)">
+                                            <input type="checkbox" id="frost-toggle" class="simex-toggle-input" data-type="Frost" onchange="handleSimexDataToggle('Frost', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -455,7 +488,7 @@
                                     <div class="simex-toggle-container">
                                         <label>Precipitation</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="precipitation-toggle" onchange="handleSimexDataToggle('Precipitation', this.checked)">
+                                            <input type="checkbox" id="precipitation-toggle" class="simex-toggle-input" data-type="Precipitation" onchange="handleSimexDataToggle('Precipitation', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -464,7 +497,7 @@
                                     <div class="simex-toggle-container">
                                         <label>Soil Moisture</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="soil-moisture-toggle" onchange="handleSimexDataToggle('Soil Moisture', this.checked)">
+                                            <input type="checkbox" id="soil-moisture-toggle" class="simex-toggle-input" data-type="Soil Moisture" onchange="handleSimexDataToggle('Soil Moisture', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -473,7 +506,7 @@
                                     <div class="simex-toggle-container">
                                         <label>Temperature</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="temperature-toggle" onchange="handleSimexDataToggle('Temperature', this.checked)">
+                                            <input type="checkbox" id="temperature-toggle" class="simex-toggle-input" data-type="Temperature" onchange="handleSimexDataToggle('Temperature', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -482,7 +515,7 @@
                                     <div class="simex-toggle-container">
                                         <label>Humidity</label>
                                         <label class="simex-toggle-switch">
-                                            <input type="checkbox" id="humidity-toggle" onchange="handleSimexDataToggle('Humidity', this.checked)">
+                                            <input type="checkbox" id="humidity-toggle" class="simex-toggle-input" data-type="Humidity" onchange="handleSimexDataToggle('Humidity', this.checked)">
                                             <span class="simex-toggle-slider"></span>
                                         </label>
                                     </div>
@@ -678,6 +711,17 @@
                                     </div>
                                 </div>
 
+                                <!-- Food Security Graph Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-toggle-container">
+                                        <a href="#" class="portals-toggle-btn" id="food-security-graph-btn" onclick="handleFoodSecurityGraphClick()">Food Security Graph</a>
+                                        <label class="portals-toggle-switch">
+                                            <input type="checkbox" id="food-security-graph-toggle" onchange="handleFoodSecurityGraphToggle(this.checked)">
+                                            <span class="portals-toggle-slider"></span>
+                                        </label>
+                                    </div>
+                                </div>
+
                                 <!-- LIMS Section -->
                                 <div class="portals-menu-section">
                                     <div class="portals-toggle-container">
@@ -711,7 +755,7 @@
                                     </div>
                                 </div>
 
-                                <!-- National Account Dashboard Section -->
+                                 <!-- National Account Dashboard Section -->
                                 <div class="portals-menu-section">
                                     <div class="portals-toggle-container">
                                         <a href="#" class="portals-toggle-btn" onclick="handlePortalClick('National Account Dashboard')">National Account Dashboard</a>
@@ -719,6 +763,43 @@
                                             <input type="checkbox" id="nad-toggle" onchange="handlePortalToggle(this.checked, 'https://na.data.gov.pk/Crops/Home')">
                                             <span class="portals-toggle-slider"></span>
                                         </label>
+                                    </div>
+                                </div>
+
+                                <!-- Crop Water Requirement Section -->
+                                <div class="portals-menu-section">
+                                    <div class="portals-accordion-header" onclick="togglePortalsAccordion('cwr-acc')">
+                                        <span>Crop Water Requirement</span>
+                                        <span class="portals-accordion-icon">▼</span>
+                                    </div>
+                                    <div id="cwr-acc" class="portals-accordion-content">
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn" onclick="handleCWRClick('National Requirement')">National Requirement</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="cwr-national-toggle" onchange="handleCWRToggle(this.checked, 'national')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn" onclick="handleCWRClick('Provincial Requirement')">Provincial Requirement</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="cwr-provincial-toggle" onchange="handleCWRToggle(this.checked, 'provincial')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div class="portals-menu-section">
+                                            <div class="portals-toggle-container">
+                                                <a href="#" class="portals-toggle-btn" onclick="handleCWRClick('Crop wise Requirement')">Crop wise Requirement</a>
+                                                <label class="portals-toggle-switch">
+                                                    <input type="checkbox" id="cwr-cropwise-toggle" onchange="handleCWRToggle(this.checked, 'cropwise')">
+                                                    <span class="portals-toggle-slider"></span>
+                                                </label>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
