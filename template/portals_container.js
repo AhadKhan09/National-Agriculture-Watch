@@ -1,6 +1,115 @@
 
 let isFsModalFullscreen = false;
 
+// Active chart instances tracker & ResizeObserver helper to prevent zero-dimension collapse
+const activeChartInstances = {};
+const activeChartObservers = new Map();
+
+function attachChartResizeObserver(containerIdOrEl, chartInstance) {
+    const container = typeof containerIdOrEl === 'string' ? document.getElementById(containerIdOrEl) : containerIdOrEl;
+    if (!container) return;
+
+    if (activeChartObservers.has(container)) {
+        activeChartObservers.get(container).disconnect();
+    }
+
+    const observer = new ResizeObserver(() => {
+        if (chartInstance && typeof chartInstance.resize === 'function') {
+            chartInstance.resize();
+        }
+    });
+
+    observer.observe(container);
+    activeChartObservers.set(container, observer);
+}
+
+function destroyChartInstance(instanceKey) {
+    if (activeChartInstances[instanceKey]) {
+        try {
+            if (typeof activeChartInstances[instanceKey].destroy === 'function') {
+                activeChartInstances[instanceKey].destroy();
+            } else if (typeof activeChartInstances[instanceKey].dispose === 'function') {
+                activeChartInstances[instanceKey].dispose();
+            }
+        } catch (e) {
+            console.warn("Chart cleanup warning:", e);
+        }
+        delete activeChartInstances[instanceKey];
+    }
+}
+
+function clearGhostTooltips() {
+    const tooltipIds = ['fs-tooltip', 'modal-fs-tooltip', 'ganttTooltip', 'fs-crop-info-popover'];
+    tooltipIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.opacity = '0';
+            el.style.pointerEvents = 'none';
+        }
+    });
+
+    document.querySelectorAll('.wheat-chart-tooltip, .gantt-tooltip').forEach(tt => {
+        tt.style.opacity = '0';
+        tt.style.pointerEvents = 'none';
+    });
+}
+
+function resizeFoodSecurityCharts() {
+    Object.values(activeChartInstances).forEach(chart => {
+        if (chart && typeof chart.resize === 'function') {
+            try {
+                chart.resize();
+            } catch (e) {
+                console.warn("Chart resize warning:", e);
+            }
+        }
+    });
+    if (typeof updateFoodSecurityModalView === 'function') {
+        updateFoodSecurityModalView();
+    }
+}
+
+function switchFoodSecurityChartView(targetView) {
+    if (targetView === 1 || targetView === 2) {
+        currentFoodSecurityGraphView = targetView;
+    } else if (targetView === 'view1') {
+        currentFoodSecurityGraphView = 1;
+    } else if (targetView === 'view2') {
+        currentFoodSecurityGraphView = 2;
+    }
+
+    clearGhostTooltips();
+    destroyChartInstance('foodSecurity');
+
+    const label = `Chart View ${currentFoodSecurityGraphView}`;
+    const btnText1 = document.getElementById('fs-graph-switcher-text');
+    const btnText2 = document.getElementById('modal-fs-graph-switcher-text');
+    
+    if (btnText1) btnText1.textContent = label;
+    if (btnText2) btnText2.textContent = label;
+
+    const inlineWrapper = document.getElementById('fs-chart-wrapper');
+    if (inlineWrapper && inlineWrapper.parentElement) {
+        const displayContainer = inlineWrapper.parentElement.parentElement;
+        if (displayContainer) renderFoodSecurityGraph(displayContainer);
+    }
+
+    const modal = document.getElementById('food-security-modal');
+    if (modal && modal.style.opacity === '1') {
+        openFoodSecurityModal(null);
+    }
+
+    requestAnimationFrame(() => {
+        resizeFoodSecurityCharts();
+    });
+}
+
+window.resizeFoodSecurityCharts = resizeFoodSecurityCharts;
+window.attachChartResizeObserver = attachChartResizeObserver;
+window.destroyChartInstance = destroyChartInstance;
+window.clearGhostTooltips = clearGhostTooltips;
+window.switchFoodSecurityChartView = switchFoodSecurityChartView;
+
 function openFoodSecurityModal(e) {
     if (e) e.stopPropagation();
     let modal = document.getElementById('food-security-modal');
@@ -8,7 +117,16 @@ function openFoodSecurityModal(e) {
         modal = document.createElement('div');
         modal.id = 'food-security-modal';
         modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(4, 7, 20, 0.92); backdrop-filter:blur(12px); z-index:99999; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.3s ease; padding:18px; box-sizing:border-box;';
-        document.body.appendChild(modal);
+    }
+
+    const targetParent = document.fullscreenElement || 
+                         document.webkitFullscreenElement || 
+                         document.mozFullScreenElement || 
+                         document.msFullscreenElement || 
+                         document.body;
+
+    if (modal.parentElement !== targetParent) {
+        targetParent.appendChild(modal);
     }
     
     const isFull = modal.classList.contains('is-full-extent');
@@ -62,6 +180,11 @@ function openFoodSecurityModal(e) {
     modal.style.display = 'flex';
     setTimeout(() => { modal.style.opacity = '1'; }, 10);
     updateFoodSecurityModalView();
+
+    // Trigger chart/modal resize after CSS rendering pass
+    requestAnimationFrame(() => {
+        resizeFoodSecurityCharts();
+    });
 }
 
 function closeFoodSecurityModal() {
@@ -4306,6 +4429,10 @@ async function loadCropWiseWaterRequirement(displayContainer) {
     }
 
     const cropCanvas = displayContainer.querySelector('#cropChart');
+    if (cropCanvas && typeof Chart !== 'undefined' && Chart.getChart) {
+        const existingCropChart = Chart.getChart(cropCanvas);
+        if (existingCropChart) existingCropChart.destroy();
+    }
     const cropCtx = cropCanvas ? cropCanvas.getContext('2d') : null;
 
     const cropChart = new Chart(cropCtx, {
@@ -4382,6 +4509,10 @@ async function loadCropWiseWaterRequirement(displayContainer) {
     displayContainer.cwrCropChartInstance = cropChart;
 
     const trendCanvas = displayContainer.querySelector('#trendChart');
+    if (trendCanvas && typeof Chart !== 'undefined' && Chart.getChart) {
+        const existingTrendChart = Chart.getChart(trendCanvas);
+        if (existingTrendChart) existingTrendChart.destroy();
+    }
     const trendCtx = trendCanvas ? trendCanvas.getContext('2d') : null;
 
     const trendChart = new Chart(trendCtx, {
@@ -5602,42 +5733,54 @@ let currentFoodSecurityGraphView = 1;
 
 function toggleFoodSecurityGraphView(e) {
     if (e) e.stopPropagation();
-    currentFoodSecurityGraphView = currentFoodSecurityGraphView === 1 ? 2 : 1;
-    
-    const label = `Chart View ${currentFoodSecurityGraphView}`;
-    const btnText1 = document.getElementById('fs-graph-switcher-text');
-    const btnText2 = document.getElementById('modal-fs-graph-switcher-text');
-    
-    if (btnText1) btnText1.textContent = label;
-    if (btnText2) btnText2.textContent = label;
-    
-    // Re-render inline view
-    const inlineWrapper = document.getElementById('fs-chart-wrapper');
-    if (inlineWrapper && inlineWrapper.parentElement) {
-        const displayContainer = inlineWrapper.parentElement.parentElement;
-        if (displayContainer) renderFoodSecurityGraph(displayContainer);
-    }
-    
-    // Re-render modal view if visible
-    const modal = document.getElementById('food-security-modal');
-    if (modal && modal.style.opacity === '1') {
-        openFoodSecurityModal(null);
-    }
+    const nextView = currentFoodSecurityGraphView === 1 ? 2 : 1;
+    switchFoodSecurityChartView(nextView);
 }
 
+function toggleChartCardFullscreen(cardIdOrEl, e) {
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    const card = typeof cardIdOrEl === 'string' ? document.getElementById(cardIdOrEl) : cardIdOrEl;
+    if (!card) return;
+
+    const currentFs = document.fullscreenElement || 
+                      document.webkitFullscreenElement || 
+                      document.mozFullScreenElement || 
+                      document.msFullscreenElement;
+
+    if (!currentFs || currentFs !== card) {
+        if (card.requestFullscreen) {
+            card.requestFullscreen();
+        } else if (card.webkitRequestFullscreen) {
+            card.webkitRequestFullscreen();
+        } else if (card.mozRequestFullScreen) {
+            card.mozRequestFullScreen();
+        } else if (card.msRequestFullscreen) {
+            card.msRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+            document.mozCancelFullScreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+    }
+
+    setTimeout(() => {
+        if (window.map) window.map.resize();
+        if (typeof resizeFoodSecurityCharts === 'function') {
+            resizeFoodSecurityCharts();
+        }
+    }, 200);
+}
+
+window.toggleChartCardFullscreen = toggleChartCardFullscreen;
 window.toggleFoodSecurityGraphView = toggleFoodSecurityGraphView;
 window.toggleFoodSecurityCardFullscreen = function (e) {
-    if (e) e.stopPropagation();
-    const card = document.getElementById('food-security-graph-card');
-    if (!card) return;
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (card.requestFullscreen) card.requestFullscreen();
-        else if (card.webkitRequestFullscreen) card.webkitRequestFullscreen();
-        else if (card.msRequestFullscreen) card.msRequestFullscreen();
-    } else {
-        if (document.exitFullscreen) document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-    }
+    toggleChartCardFullscreen('food-security-graph-card', e);
 };
 
 function drawFoodSecurityView2(svg, displayContainer, isModal) {

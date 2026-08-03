@@ -1870,3 +1870,41 @@ body {
         display: none !important;
     }
 }
+
+/* Modal overlay styling & Stacking Context Standardization */
+.food-security-modal,
+#food-security-modal,
+#ganttCropModal,
+#crop-card-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 999999 !important; /* Ensure modal stays above fullscreen maps and sidebars */
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Fullscreen card overrides */
+.chart-card:fullscreen,
+.food-security-container:fullscreen,
+#food-security-graph-card:fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: #1a1a1a;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-card:fullscreen .chart-canvas-container,
+.food-security-container:fullscreen #fs-chart-wrapper,
+#food-security-graph-card:fullscreen #modal-fs-wrapper {
+    flex: 1;
+    width: 100% !important;
+    height: 100% !important;
+}

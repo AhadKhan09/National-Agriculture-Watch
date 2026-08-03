@@ -1114,6 +1114,16 @@ function openCropModal(cropName) {
     const modal = document.getElementById('ganttCropModal');
     if (!modal) return;
 
+    const targetParent = document.fullscreenElement || 
+                         document.webkitFullscreenElement || 
+                         document.mozFullScreenElement || 
+                         document.msFullscreenElement || 
+                         document.body;
+
+    if (modal.parentElement !== targetParent) {
+        targetParent.appendChild(modal);
+    }
+
     const details = getCropDetails(cropName);
     const region = currentZone === 'all' ? 'All Zones' : currentZone;
     const resolvedRegion = details?.zone ? details.zone : region;
@@ -1161,6 +1171,12 @@ function openCropModal(cropName) {
 
     modal.classList.add('show');
     modal.setAttribute('aria-hidden', 'false');
+
+    requestAnimationFrame(() => {
+        if (typeof mainChart !== 'undefined' && mainChart && typeof mainChart.resize === 'function') {
+            mainChart.resize();
+        }
+    });
 }
 
 function closeCropModal() {

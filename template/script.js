@@ -76,6 +76,9 @@ function bindGlobalAppLifecycleListeners() {
         if (typeof mainChart !== 'undefined' && mainChart) {
             mainChart.resize();
         }
+        if (typeof resizeFoodSecurityCharts === 'function') {
+            resizeFoodSecurityCharts();
+        }
     }, { signal });
 
     // Handle fullscreen changes to resize maps and charts properly
@@ -90,6 +93,10 @@ function bindGlobalAppLifecycleListeners() {
 
                 if (typeof mainChart !== 'undefined' && mainChart) {
                     mainChart.resize();
+                }
+
+                if (typeof resizeFoodSecurityCharts === 'function') {
+                    resizeFoodSecurityCharts();
                 }
             }, 350);
 
