@@ -261,8 +261,13 @@ function showSimexCharts() {
 
     // Clean up map if it exists
     if (window.simexMapInstance) {
-        window.simexMapInstance.remove();
+        try {
+            window.simexMapInstance.remove();
+        } catch (e) {
+            console.warn("Simex map cleanup skipped:", e);
+        }
         window.simexMapInstance = null;
+        simexGodownsPopupBound = false; // Reset tracking flag
     }
 
     // Clear current content
@@ -553,7 +558,12 @@ function hideSimexDataLayer(dataType, map) {
 // Toggle Simex Sidebar Menu
 function toggleSimexMenu() {
     const sidebar = document.getElementById('simexSidebar');
-    sidebar.classList.toggle('active');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+        if (window.simexMapInstance) {
+            forceSimexMapResize(window.simexMapInstance);
+        }
+    }
 }
 
 // Handle simex click
@@ -849,8 +859,13 @@ function displaySimexData(data) {
     if (!simexContent) return;
 
     if (window.simexMapInstance) {
-        window.simexMapInstance.remove();
+        try {
+            window.simexMapInstance.remove();
+        } catch (e) {
+            console.warn("Simex map cleanup skipped:", e);
+        }
         window.simexMapInstance = null;
+        simexGodownsPopupBound = false; // Reset tracking flag
     }
 
     simexContent.innerHTML = '';

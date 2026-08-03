@@ -906,12 +906,6 @@ function renderChart() {
 
     if (!chartDiv) return;
 
-    if (data.length === 0) {
-        chartDiv.className = 'gantt-state';
-        chartDiv.innerHTML = '📊 No crop data available for the selected zone.';
-        return;
-    }
-
     let rowsBody = document.getElementById('gantt-rows-body');
     if (!rowsBody) {
         let html = '<div class="gantt-chart">';
@@ -925,6 +919,11 @@ function renderChart() {
         chartDiv.className = '';
         chartDiv.innerHTML = html;
         rowsBody = document.getElementById('gantt-rows-body');
+    }
+
+    if (data.length === 0) {
+        rowsBody.innerHTML = '<div class="gantt-empty-state" style="grid-column: 1 / span 13; padding: 24px; text-align: center; color: #a0aec0; font-size: 14px; font-weight: 500;">📊 No crop data available for the selected zone.</div>';
+        return;
     }
 
     const groups = {};

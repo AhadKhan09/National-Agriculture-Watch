@@ -46,55 +46,69 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof loadSimexData === 'function') {
         loadSimexData();
     }
+
+    // Bind global lifecycle listeners cleanly
+    bindGlobalAppLifecycleListeners();
 });
 
-// Handle window resize
-window.addEventListener('resize', function () {
-    // Resize main map if available
-    if (typeof map !== 'undefined' && map) {
-        map.resize();
-    }
-    // Resize simex map if available
-    if (typeof window.simexMapInstance !== 'undefined' && window.simexMapInstance) {
-        window.simexMapInstance.resize();
-    }
-    // Resize chart if available
-    if (typeof mainChart !== 'undefined' && mainChart) {
-        mainChart.resize();
-    }
-});
+let appLifecycleController = null;
 
-// Handle fullscreen changes to resize maps and charts properly
-['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(eventType => {
-    document.addEventListener(eventType, function () {
-        // Handle Mapbox resize
-        setTimeout(function () {
-            if (typeof map !== 'undefined' && map) {
-                map.resize();
-            }
-            if (typeof window.simexMapInstance !== 'undefined' && window.simexMapInstance) {
-                window.simexMapInstance.resize();
-            }
-            if (typeof mainChart !== 'undefined' && mainChart) {
-                mainChart.resize();
-            }
-        }, 200); // Delay ensures layout finishes before resizing
+function bindGlobalAppLifecycleListeners() {
+    if (appLifecycleController) {
+        appLifecycleController.abort();
+    }
+    appLifecycleController = new AbortController();
+    const { signal } = appLifecycleController;
 
-        // Handle Navbar in fullscreen
-        const navbar = document.querySelector('.navbar');
-        const fse = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
-
-        if (fse && fse !== document.documentElement && fse !== document.body) {
-            // We are entering fullscreen on a specific container
-            fse.appendChild(navbar);
-            navbar.classList.add('navbar-fullscreen');
-        } else if (navbar && navbar.classList.contains('navbar-fullscreen')) {
-            // We are exiting fullscreen, move navbar back to the top of the body
-            document.body.insertBefore(navbar, document.body.firstChild);
-            navbar.classList.remove('navbar-fullscreen');
+    // Handle window resize
+    window.addEventListener('resize', function () {
+        // Resize main map if available
+        if (window.map) {
+            window.map.resize();
+        } else if (typeof map !== 'undefined' && map) {
+            map.resize();
         }
+        // Resize simex map if available
+        if (window.simexMapInstance) {
+            window.simexMapInstance.resize();
+        }
+        // Resize chart if available
+        if (typeof mainChart !== 'undefined' && mainChart) {
+            mainChart.resize();
+        }
+    }, { signal });
+
+    // Handle fullscreen changes to resize maps and charts properly
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(eventType => {
+        document.addEventListener(eventType, function () {
+            // Handle Mapbox resize after 350ms (ensuring CSS transitions and projections update fully)
+            setTimeout(function () {
+                const mainMap = window.map || (typeof map !== 'undefined' ? map : null);
+                if (mainMap) mainMap.resize();
+
+                if (window.simexMapInstance) window.simexMapInstance.resize();
+
+                if (typeof mainChart !== 'undefined' && mainChart) {
+                    mainChart.resize();
+                }
+            }, 350);
+
+            // Handle Navbar in fullscreen
+            const navbar = document.querySelector('.navbar');
+            const fse = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+
+            if (fse && fse !== document.documentElement && fse !== document.body) {
+                // We are entering fullscreen on a specific container
+                fse.appendChild(navbar);
+                navbar.classList.add('navbar-fullscreen');
+            } else if (navbar && navbar.classList.contains('navbar-fullscreen')) {
+                // We are exiting fullscreen, move navbar back to the top of the body
+                document.body.insertBefore(navbar, document.body.firstChild);
+                navbar.classList.remove('navbar-fullscreen');
+            }
+        }, { signal });
     });
-});
+}
 
 // Toggle Charts Fullscreen
 window.toggleChartsFullscreen = function () {

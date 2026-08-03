@@ -326,7 +326,12 @@ function clearLegend() {
 // Toggle Map Sidebar Menu
 function toggleMapMenu() {
     const sidebar = document.getElementById('mapSidebar');
-    sidebar.classList.toggle('active');
+    if (sidebar) {
+        sidebar.classList.toggle('active');
+        if (window.map) {
+            forceMapResize(window.map);
+        }
+    }
 }
 
 // Toggle Accordion
@@ -1387,60 +1392,38 @@ function handleCropHighlightToggle(cropName, isChecked) {
         });
 }
 
-// Toggle vegetation layers (all at once)
+// Toggle vegetation layers (using single dynamic raster source)
 function toggleVegetationLayers(isActive) {
-    const vegetationLayers = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
     if (isActive) {
-        // Preload all vegetation months if not already loaded
-        preloadAllVegetationMonths();
-
-        // Show slider and start with January
         showVegetationSlider();
         showVegetationMonth('January');
-        // Add legend entries
         addLegendEntry('vegetation', '#47a247', 'Vegetation');
         addLegendEntry('other', '#edc664', 'Other');
     } else {
-        // Hide slider and remove all layers
         hideVegetationSlider();
-        vegetationLayers.forEach(layerName => {
-            removeLayerFromMap('veg_' + normalizeLayerKey(layerName));
-        });
-        // Remove legend entries when turned off
+        if (map && map.getLayer('vegetation-dynamic-layer')) {
+            map.setLayoutProperty('vegetation-dynamic-layer', 'visibility', 'none');
+        }
         removeLegendEntry('vegetation');
         removeLegendEntry('other');
     }
 }
 
-// Preload all vegetation months for seamless switching
+// Preload optimized with dynamic single-source raster loading
 function preloadAllVegetationMonths() {
-    const vegetationLayers = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    console.log('Vegetation cover using dynamic single-source raster memory optimization');
+}
 
-    vegetationLayers.forEach(monthName => {
-        // Only add if not already loaded
-        if (!loadedLayers['veg_' + normalizeLayerKey(monthName)]) {
-            addWMSLayerToMap(monthName, false, 'vegetation'); // Preload but keep hidden
-        }
-    });
-
-    console.log('All vegetation months preloaded');
-}// Toggle crop topology layers (all at once)
+// Toggle crop topology layers (using single dynamic raster source)
 function toggleCropTopologyLayers(isActive) {
     if (isActive) {
-        // Preload all crop topology months if not already loaded
-        preloadAllCropTopologyMonths();
-
-        // Show slider and start with January
         showCropTopologySlider();
         showCropTopologyMonth('January');
-        // The legend will be dynamically updated by updateCropTopologyDisplay
     } else {
-        // Hide slider and remove all layers
         hideCropTopologySlider();
-        cropTopologyMonths.forEach(month => {
-            removeLayerFromMap('crop_' + normalizeLayerKey(month));
-        });
+        if (map && map.getLayer('crop-topology-dynamic-layer')) {
+            map.setLayoutProperty('crop-topology-dynamic-layer', 'visibility', 'none');
+        }
         // Remove all crop topology legend entries
         removeLegendEntry('wheat');
         removeLegendEntry('mustard');
@@ -1722,46 +1705,53 @@ function hideVegetationSlider() {
 // Show specific vegetation month
 function showVegetationMonth(monthName) {
     try {
-        // Hide all vegetation months first
-        vegetationMonths.forEach(month => {
-            hideVegetationMonth(month);
-        });
-
-        // Show the selected month
         showVegetationMonthLayer(monthName);
     } catch (error) {
         console.error('Error showing vegetation month:', monthName, error);
-        // Continue playback even if there's an error
     }
 }
 
-// Hide a specific vegetation month (set visibility to none)
+// Hide a specific vegetation month
 function hideVegetationMonth(monthName) {
-    const storageKey = 'veg_' + normalizeLayerKey(monthName);
-    if (!loadedLayers[storageKey]) {
-        return; // Not loaded yet
-    }
-
-    const { layerId } = loadedLayers[storageKey];
-    if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', 'none');
-    }
+    // Single dynamic layer handles month switching
 }
 
-// Show a specific vegetation month (set visibility to visible)
+// Show a specific vegetation month using dynamic single-source raster
 function showVegetationMonthLayer(monthName) {
-    const storageKey = 'veg_' + normalizeLayerKey(monthName);
-    if (!loadedLayers[storageKey]) {
-        // If not loaded yet, add it and set to visible
-        addWMSLayerToMap(monthName, true, 'vegetation');
-        return;
-    }
+    if (!map) return;
+    const wmsUrl = layerUrls['Vegetation Cover'] && layerUrls['Vegetation Cover'][monthName];
+    if (!wmsUrl) return;
 
-    const { layerId } = loadedLayers[storageKey];
-    if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', 'visible');
-        map.setPaintProperty(layerId, 'raster-opacity', 0.95);
+    const sourceId = 'vegetation-dynamic-source';
+    const layerId = 'vegetation-dynamic-layer';
+
+    if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+            type: 'raster',
+            tiles: [wmsUrl],
+            tileSize: 256
+        });
+        map.addLayer({
+            id: layerId,
+            type: 'raster',
+            source: sourceId,
+            paint: {
+                'raster-opacity': 0.95
+            }
+        });
         ensureThematicLayerOrder(layerId);
+    } else {
+        const source = map.getSource(sourceId);
+        if (source.setTiles) {
+            source.setTiles([wmsUrl]);
+        } else if (source.updateTiles) {
+            source.updateTiles([wmsUrl]);
+        }
+        if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, 'visibility', 'visible');
+            map.setPaintProperty(layerId, 'raster-opacity', 0.95);
+            ensureThematicLayerOrder(layerId);
+        }
     }
 }
 
@@ -1868,18 +1858,9 @@ function updateVegetationDisplay() {
     }
 }
 
-// Preload all crop topology months for seamless switching
+// Preload optimized with dynamic single-source raster loading
 function preloadAllCropTopologyMonths() {
-    const cropTopologyLayers = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-    cropTopologyLayers.forEach(monthName => {
-        // Only add if not already loaded
-        if (!loadedLayers['crop_' + normalizeLayerKey(monthName)]) {
-            addWMSLayerToMap(monthName, false, 'crop'); // Preload but keep hidden
-        }
-    });
-
-    console.log('All crop topology months preloaded');
+    console.log('Crop topology using dynamic single-source raster memory optimization');
 }
 
 // Show crop topology slider
@@ -2130,46 +2111,53 @@ function hideCropTopologySlider() {
 // Show specific crop topology month
 function showCropTopologyMonth(monthName) {
     try {
-        // Hide all crop topology months first
-        cropTopologyMonths.forEach(month => {
-            hideCropTopologyMonth(month);
-        });
-
-        // Show the selected month
         showCropTopologyMonthLayer(monthName);
     } catch (error) {
         console.error('Error showing crop topology month:', monthName, error);
-        // Continue playback even if there's an error
     }
 }
 
-// Hide a specific crop topology month (set visibility to none)
+// Hide a specific crop topology month
 function hideCropTopologyMonth(monthName) {
-    const storageKey = 'crop_' + normalizeLayerKey(monthName);
-    if (!loadedLayers[storageKey]) {
-        return; // Not loaded yet
-    }
-
-    const { layerId } = loadedLayers[storageKey];
-    if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', 'none');
-    }
+    // Single dynamic layer handles month switching
 }
 
-// Show a specific crop topology month (set visibility to visible)
+// Show a specific crop topology month using dynamic single-source raster
 function showCropTopologyMonthLayer(monthName) {
-    const storageKey = 'crop_' + normalizeLayerKey(monthName);
-    if (!loadedLayers[storageKey]) {
-        // If not loaded yet, add it and set to visible
-        addWMSLayerToMap(monthName, true, 'crop');
-        return;
-    }
+    if (!map) return;
+    const wmsUrl = layerUrls['Crop Topology'] && layerUrls['Crop Topology'][monthName];
+    if (!wmsUrl) return;
 
-    const { layerId } = loadedLayers[storageKey];
-    if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', 'visible');
-        map.setPaintProperty(layerId, 'raster-opacity', 0.95);
+    const sourceId = 'crop-topology-dynamic-source';
+    const layerId = 'crop-topology-dynamic-layer';
+
+    if (!map.getSource(sourceId)) {
+        map.addSource(sourceId, {
+            type: 'raster',
+            tiles: [wmsUrl],
+            tileSize: 256
+        });
+        map.addLayer({
+            id: layerId,
+            type: 'raster',
+            source: sourceId,
+            paint: {
+                'raster-opacity': 0.95
+            }
+        });
         ensureThematicLayerOrder(layerId);
+    } else {
+        const source = map.getSource(sourceId);
+        if (source.setTiles) {
+            source.setTiles([wmsUrl]);
+        } else if (source.updateTiles) {
+            source.updateTiles([wmsUrl]);
+        }
+        if (map.getLayer(layerId)) {
+            map.setLayoutProperty(layerId, 'visibility', 'visible');
+            map.setPaintProperty(layerId, 'raster-opacity', 0.95);
+            ensureThematicLayerOrder(layerId);
+        }
     }
 }
 
@@ -5916,13 +5904,7 @@ function layoutCropAutoplayGraph() {
     });
 }
 
-// Window resize layout syncing
-window.addEventListener('resize', () => {
-    const overlay = document.getElementById('crop-autoplay-overlay');
-    if (overlay && overlay.style.display !== 'none') {
-        layoutCropAutoplayGraph();
-    }
-});
+// Window resize layout syncing managed via mainMapLifecycleRegistry signal
 
 function renderCropAutoplayTable(currentCrop = '') {
     const container = document.getElementById('crop-autoplay-overlay');
@@ -6262,7 +6244,24 @@ function handleOthersToggle(type, isActive) {
 }
 
 // Vulnerable Districts state & logic
-let vulnerableBlinkInterval = null;
+let vulnerableBlinkActive = false;
+let vulnerableAnimationFrameId = null;
+
+function animateVulnerableDistrictsLoop(timestamp) {
+    if (!vulnerableBlinkActive || !map || !map.getLayer('vulnerable-districts-layer')) return;
+
+    const period = 800;
+    const wave = (Math.sin((timestamp % period) / period * Math.PI * 2 - Math.PI / 2) + 1) / 2;
+    const opacity = 0.2 + (0.6 * wave);
+
+    try {
+        map.setPaintProperty('vulnerable-districts-layer', 'fill-opacity', opacity);
+    } catch (e) {
+        // ignore transient state
+    }
+
+    vulnerableAnimationFrameId = requestAnimationFrame(animateVulnerableDistrictsLoop);
+}
 
 function showVulnerableDistricts() {
     if (!map) return;
@@ -6291,33 +6290,25 @@ function showVulnerableDistricts() {
         map.setLayoutProperty('vulnerable-districts-layer', 'visibility', 'visible');
     }
 
-    // Continuously blink and move to top
-    let blinkOpacity = 0.8;
-    let fadeOut = true;
-
-    if (vulnerableBlinkInterval) clearInterval(vulnerableBlinkInterval);
-
-    vulnerableBlinkInterval = setInterval(() => {
-        if (!map.getLayer('vulnerable-districts-layer')) return;
-
-        // Ensure it stays on top by constantly moving it to the end of layers
+    // Move layer once to top of stack
+    try {
         map.moveLayer('vulnerable-districts-layer');
+    } catch (e) {
+        console.warn("Vulnerable districts moveLayer skipped:", e);
+    }
 
-        if (fadeOut) {
-            blinkOpacity -= 0.1;
-            if (blinkOpacity <= 0.2) fadeOut = false;
-        } else {
-            blinkOpacity += 0.1;
-            if (blinkOpacity >= 0.8) fadeOut = true;
-        }
-        map.setPaintProperty('vulnerable-districts-layer', 'fill-opacity', blinkOpacity);
-    }, 150); // Gives a noticeable flashing/blinking effect
+    if (!vulnerableBlinkActive) {
+        vulnerableBlinkActive = true;
+        if (vulnerableAnimationFrameId) cancelAnimationFrame(vulnerableAnimationFrameId);
+        vulnerableAnimationFrameId = requestAnimationFrame(animateVulnerableDistrictsLoop);
+    }
 }
 
 function hideVulnerableDistricts() {
-    if (vulnerableBlinkInterval) {
-        clearInterval(vulnerableBlinkInterval);
-        vulnerableBlinkInterval = null;
+    vulnerableBlinkActive = false;
+    if (vulnerableAnimationFrameId) {
+        cancelAnimationFrame(vulnerableAnimationFrameId);
+        vulnerableAnimationFrameId = null;
     }
     if (map && map.getLayer('vulnerable-districts-layer')) {
         map.setLayoutProperty('vulnerable-districts-layer', 'visibility', 'none');
@@ -6542,6 +6533,13 @@ function initMap() {
         document.addEventListener(eventType, resizeHandler, { signal });
     });
     window.addEventListener('resize', resizeHandler, { signal });
+
+    window.addEventListener('resize', () => {
+        const overlay = document.getElementById('crop-autoplay-overlay');
+        if (overlay && overlay.style.display !== 'none') {
+            layoutCropAutoplayGraph();
+        }
+    }, { signal });
 
     map.on('remove', () => {
         if (mainMapLifecycleRegistry) {
